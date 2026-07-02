@@ -1,0 +1,94 @@
+{{- if not .Values.baseDomain }}{{ fail "baseDomain is required (set fleet.lab.kurtmadel.com/base-domain on the Cluster)" }}{{- end }}
+{{- if not .Values.gatewayLoadBalancerIP }}{{ fail "gatewayLoadBalancerIP is required (set fleet.lab.kurtmadel.com/gateway-lb-ip on the Cluster)" }}{{- end }}
+{{- $b := .Values.baseDomain -}}
+{{- $dash := $b | replace "." "-" -}}
+{{- $wildcardTls := default (printf "%s-tls" $dash) .Values.tls.wildcardSecretName -}}
+{{- $appsTls := default (printf "apps-%s-tls" $dash) .Values.tls.appsSecretName -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: eg
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: lab-edge
+  namespace: envoy-gateway-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: LoadBalancer
+        externalTrafficPolicy: {{ .Values.externalTrafficPolicy }}
+        annotations:
+          metallb.io/loadBalancerIPs: {{ .Values.gatewayLoadBalancerIP | quote }}
+          {{- if .Values.externalDNS.enabled }}
+          external-dns.kubernetes.io/hostname: {{ list (printf "*.%s" $b) (printf "*.apps.%s" $b) .Values.platformHostname | compact | join "," | quote }}
+          {{- end }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: lab
+  namespace: envoy-gateway-system
+spec:
+  gatewayClassName: eg
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: lab-edge
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.{{ $b }}"
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: apps-http
+      protocol: HTTP
+      port: 80
+      hostname: "*.apps.{{ $b }}"
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- if .Values.tls.enabled }}
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.{{ $b }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ $wildcardTls }}
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: apps-https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.apps.{{ $b }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ $appsTls }}
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}
+{{- if .Values.platformHostname }}
+    # Hub only: TLS passthrough for the vCluster Platform hostname.
+    - name: vcp-tls
+      protocol: TLS
+      port: 443
+      hostname: {{ .Values.platformHostname | quote }}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}

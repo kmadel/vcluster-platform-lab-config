@@ -1,0 +1,33 @@
+# vcluster-gitops-watcher.yaml - management-cluster-only baseline app.
+#
+# The watcher is a single component per Argo CD instance, not per control plane
+# cluster: it watches VirtualClusterInstances cluster-wide and patches the Argo CD
+# Applications and imported cluster Secrets in the Platform management cluster's
+# argocd namespace. Its binding is created ONLY for the Platform management
+# cluster (see bindings/values.yaml), not for every control plane cluster.
+#
+# It sources the centralized manifests copied into this repo (formerly applied by
+# hand from kpi-vcluster/manifests/argocd). The platform-token Secret is created
+# out of band and is intentionally NOT in git.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: vcluster-gitops-watcher
+spec:
+  displayName: "vCluster GitOps Watcher"
+  owner:
+    team: loft-admins
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+        targetRevision: main
+        path: baseline/manifests/vcluster-gitops-watcher
+      destination:
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+  parameters: []

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: metallb-config
+description: Per-cluster MetalLB IPAddressPool + L2Advertisement, value-driven.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

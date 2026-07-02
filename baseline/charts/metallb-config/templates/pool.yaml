@@ -1,0 +1,22 @@
+{{- if not .Values.addressPool }}
+{{- fail "addressPool is required (set fleet.lab.kurtmadel.com/metallb-pool on the Cluster)" }}
+{{- end }}
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: default
+  namespace: metallb-system
+spec:
+  addresses:
+    - {{ .Values.addressPool | quote }}
+{{- if .Values.l2Advertisement }}
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - default
+{{- end }}

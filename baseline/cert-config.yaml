@@ -1,0 +1,39 @@
+# cert-config.yaml - the per-cluster TLS certs (annotation-driven).
+#
+# Closes the loop for envoy-gateway-config: it issues the wildcard secrets the
+# "lab" Gateway listeners reference, via cert-manager, using the cluster's own
+# ClusterIssuer. Deployed into envoy-gateway-system so the name-only
+# certificateRefs on the Gateway resolve to these secrets.
+#
+# Depends on cert-manager (CRDs + a working ClusterIssuer); Argo CD retries until
+# both exist. Wildcard certs require a DNS01 issuer.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: cert-config
+spec:
+  displayName: "Edge TLS Certs (per-cluster)"
+  owner:
+    team: loft-admins
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+        targetRevision: main
+        path: baseline/charts/cert-config
+        helm:
+          releaseName: cert-config
+          # Rendered by the platform (vCP) per target Cluster; keep literal.
+          values: |
+            baseDomain: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/base-domain" }}'
+            clusterIssuer: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/cluster-issuer" }}'
+      destination:
+        namespace: envoy-gateway-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  parameters: []

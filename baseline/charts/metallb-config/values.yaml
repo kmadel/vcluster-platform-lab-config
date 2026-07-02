@@ -1,0 +1,6 @@
+# Set by the metallb-config ArgoCDApplicationTemplate from the target Cluster's
+# fleet.lab.kurtmadel.com/metallb-pool annotation.
+addressPool: ""
+
+# L2 advertisement is on by default; set to false for a BGP-only cluster.
+l2Advertisement: true

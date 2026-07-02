@@ -1,0 +1,9 @@
+apiVersion: v2
+name: envoy-gateway-config
+description: >-
+  Per-cluster Envoy Gateway edge: GatewayClass, EnvoyProxy (MetalLB LoadBalancer
+  IP), and the shared "lab" Gateway with listeners derived from the cluster's
+  base domain. Value-driven so one chart fits every control plane cluster.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

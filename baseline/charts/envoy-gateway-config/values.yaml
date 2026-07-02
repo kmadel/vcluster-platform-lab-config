@@ -1,0 +1,35 @@
+# All set by the envoy-gateway-config ArgoCDApplicationTemplate from the target
+# Cluster's fleet.lab.kurtmadel.com/* annotations.
+
+# Base domain for this cluster, e.g. lab.kurtmadel.com (Platform management
+# cluster) or
+# dc1.lab.kurtmadel.com (an agent control plane cluster). Listener hostnames are
+# derived from it: *.<base>, *.apps.<base>.
+baseDomain: ""
+
+# MetalLB IP for the Envoy edge LoadBalancer. Must sit inside this cluster's
+# MetalLB pool (fleet.lab.kurtmadel.com/metallb-pool).
+gatewayLoadBalancerIP: ""
+
+# Hub only: the vCluster Platform hostname. When set, a TLS passthrough listener
+# (vcp-tls) is added for it. Leave empty on agent control plane clusters.
+platformHostname: ""
+
+externalTrafficPolicy: Cluster
+
+# When true, annotates the Envoy edge LoadBalancer Service with
+# external-dns.kubernetes.io/hostname so external-dns (baseline/external-dns.yaml)
+# publishes DNS records for this cluster's wildcard listeners (and the
+# platformHostname listener, if set). Off by default; only takes effect if the
+# external-dns app is also enabled for this cluster.
+externalDNS:
+  enabled: false
+
+# HTTPS listeners. Secret names default to deriving from the base domain
+# (<base-dashed>-tls and apps-<base-dashed>-tls), matching the lab convention.
+# These secrets must be issued by cert-manager (Certificate + ClusterIssuer);
+# that issuance is out of scope for this chart.
+tls:
+  enabled: true
+  wildcardSecretName: ""
+  appsSecretName: ""

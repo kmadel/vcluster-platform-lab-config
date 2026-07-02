@@ -1,0 +1,34 @@
+{{- if not .Values.baseDomain }}{{ fail "baseDomain is required (set fleet.lab.kurtmadel.com/base-domain on the Cluster)" }}{{- end }}
+{{- if not .Values.clusterIssuer }}{{ fail "clusterIssuer is required (set fleet.lab.kurtmadel.com/cluster-issuer on the Cluster)" }}{{- end }}
+{{- $b := .Values.baseDomain -}}
+{{- $dash := $b | replace "." "-" -}}
+# Wildcard cert for *.<base>, secret consumed by the Gateway "https" listener.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ printf "%s-tls" $dash }}
+spec:
+  secretName: {{ printf "%s-tls" $dash }}
+  dnsNames:
+    - "*.{{ $b }}"
+{{- if .Values.includeApex }}
+    - "{{ $b }}"
+{{- end }}
+  issuerRef:
+    name: {{ .Values.clusterIssuer }}
+    kind: {{ .Values.issuerKind }}
+    group: cert-manager.io
+---
+# Wildcard cert for *.apps.<base>, secret consumed by the "apps-https" listener.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ printf "apps-%s-tls" $dash }}
+spec:
+  secretName: {{ printf "apps-%s-tls" $dash }}
+  dnsNames:
+    - "*.apps.{{ $b }}"
+  issuerRef:
+    name: {{ .Values.clusterIssuer }}
+    kind: {{ .Values.issuerKind }}
+    group: cert-manager.io

@@ -1,0 +1,47 @@
+# envoy-gateway-config.yaml - the per-cluster Envoy edge (annotation-driven).
+#
+# Sibling of metallb-config: one template, divergent values per cluster, read off
+# the target Cluster's annotations via .Values.loft.clusterAnnotations. Renders
+# the GatewayClass, the EnvoyProxy (MetalLB LoadBalancer IP), and the shared
+# "lab" Gateway whose listeners derive from the cluster's base domain. The
+# Platform management-cluster-only passthrough listener appears only when
+# platform-hostname is set on that Cluster.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: envoy-gateway-config
+spec:
+  displayName: "Envoy Gateway Edge (per-cluster)"
+  owner:
+    team: loft-admins
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+        targetRevision: main
+        path: baseline/charts/envoy-gateway-config
+        helm:
+          releaseName: envoy-gateway-config
+          # These {{ ... }} are rendered by the platform (vCP) per target Cluster,
+          # not by the Layer-1 Argo CD that applies this file, so keep them literal.
+          # platform-hostname is absent on agent clusters; index returns "" and the
+          # passthrough listener is omitted.
+          values: |
+            baseDomain: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/base-domain" }}'
+            gatewayLoadBalancerIP: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/gateway-lb-ip" }}'
+            platformHostname: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/platform-hostname" }}'
+            # external-dns is bundled into every baseline profile, so wire the
+            # wildcard hostname annotation on by default here too. The chart's
+            # own default stays false for anyone deploying it standalone.
+            externalDNS:
+              enabled: true
+      destination:
+        namespace: envoy-gateway-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  parameters: []

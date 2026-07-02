@@ -1,0 +1,33 @@
+# cert-manager.yaml - uniform baseline app (no per-cluster divergence).
+#
+# One ArgoCDApplicationTemplate, reused across every control plane cluster via an
+# ArgoCDApplication binding per cluster. No clusterAnnotations needed: cert-manager
+# is identical everywhere, so there is nothing to template off the Cluster.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: cert-manager
+spec:
+  displayName: "cert-manager"
+  owner:
+    team: loft-admins
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: https://charts.jetstack.io
+        chart: cert-manager
+        targetRevision: v1.16.2
+        helm:
+          releaseName: cert-manager
+          values: |
+            installCRDs: true
+      destination:
+        namespace: cert-manager
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  parameters: []

@@ -1,0 +1,32 @@
+# cp-blacksburg-dc1.yaml - a connected (agent) control plane cluster.
+#
+# This Cluster resource is the per-cluster PARAMETER SHEET. The annotations under
+# fleet.lab.kurtmadel.com/* are read by the baseline ArgoCDApplicationTemplates
+# through .Values.loft.clusterAnnotations (the same code path the tenant flow
+# uses), so divergent values like the MetalLB pool live here, not in extra
+# templates.
+#
+# IMPORTANT: the actual connection (agent install + token Secret) is established
+# out of band by `vcluster platform connect cluster` or your provisioning IaC.
+# Argo CD manages this object's metadata/annotations; it does not create the
+# connection credentials. The SkipDryRunOnMissingResource sync-option is needed
+# because the platform installs the Cluster CRD itself.
+apiVersion: management.loft.sh/v1
+kind: Cluster
+metadata:
+  name: cp-blacksburg-dc1
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    fleet.lab.kurtmadel.com/metallb-pool: "192.168.51.0/24"
+    fleet.lab.kurtmadel.com/gateway-lb-ip: "192.168.51.10"
+    fleet.lab.kurtmadel.com/base-domain: "dc1.lab.kurtmadel.com"
+    fleet.lab.kurtmadel.com/cluster-issuer: "letsencrypt-prod"
+    fleet.lab.kurtmadel.com/profiles: "control-plane-baseline"
+    # no platform-hostname: agent control plane clusters do not host the platform
+  labels:
+    fleet.lab.kurtmadel.com/baseline: "true"
+spec:
+  displayName: "CP Blacksburg DC1"
+  # fleet-binding-controller only reconciles Clusters with argoCD.enabled: true.
+  argoCD:
+    enabled: true

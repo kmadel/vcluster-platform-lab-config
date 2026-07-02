@@ -1,0 +1,35 @@
+# snooze-platform-config.yaml - Layer 1 (platform config as code).
+#
+# A plain Argo CD Application that reconciles the management.loft.sh resources
+# for the snooze demo (the two VirtualClusterTemplates and the vcluster-snooze
+# ArgoCDApplicationTemplate) onto the vCluster Platform cluster.
+#
+# This is NOT the v2 Argo CD integration. It is ordinary GitOps for the
+# platform's own definitional resources. The v2 integration (Layer 2) then runs
+# on top: the VirtualClusterTemplates reference the ArgoCDApplicationTemplate via
+# deploy.argoCD.applications to deliver the sleepy-site chart into tenant
+# clusters.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: snooze-platform-config
+  namespace: argocd
+  annotations:
+    # Land the App Templates / templates before anything references them.
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/vcluster-snooze.git
+    targetRevision: main
+    path: vcp/manifests
+  destination:
+    # Argo CD runs alongside vCluster Platform on the kpi cluster.
+    server: https://kubernetes.default.svc
+    # management.loft.sh resources are cluster-scoped; this namespace is nominal.
+    # Set it to the namespace vCluster Platform is installed in.
+    namespace: vcluster-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

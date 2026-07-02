@@ -1,0 +1,64 @@
+# external-dns.yaml - the per-cluster DNS publisher (annotation-driven).
+#
+# Uses external-dns's native GoDaddy provider (kubernetes-sigs/external-dns
+# supports --provider=godaddy directly; no webhook sidecar needed).
+# domainFilters is scoped to the target Cluster's own fleet.lab.kurtmadel.com/
+# base-domain, so one cluster's external-dns instance can never touch another
+# cluster's DNS records even though they share the same GoDaddy account.
+#
+# GoDaddy credentials are NOT stored in git. Create the Secret out of band in
+# the external-dns namespace before this Application can sync successfully
+# (Argo CD retries until it exists, same as the ClusterIssuer cert-config
+# depends on):
+#
+#   kubectl -n external-dns create secret generic godaddy-api-credentials \
+#     --from-literal=api-key=<GODADDY_API_KEY> \
+#     --from-literal=api-secret=<GODADDY_API_SECRET>
+#
+# Nothing creates external-dns.kubernetes.io/hostname annotations by itself;
+# set envoy-gateway-config's externalDNS.enabled to true on a cluster to
+# annotate its edge LoadBalancer Service with the wildcard hostnames.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: external-dns
+spec:
+  displayName: "external-dns (GoDaddy)"
+  owner:
+    team: loft-admins
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: https://kubernetes-sigs.github.io/external-dns/
+        chart: external-dns
+        targetRevision: 1.21.1
+        helm:
+          releaseName: external-dns
+          # Rendered by the platform (vCP) per target Cluster; keep literal.
+          values: |
+            provider:
+              name: godaddy
+            env:
+              - name: EXTERNAL_DNS_GODADDY_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: godaddy-api-credentials
+                    key: api-key
+              - name: EXTERNAL_DNS_GODADDY_API_SECRET
+                valueFrom:
+                  secretKeyRef:
+                    name: godaddy-api-credentials
+                    key: api-secret
+            domainFilters:
+              - '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/base-domain" }}'
+            txtOwnerId: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/base-domain" }}'
+      destination:
+        namespace: external-dns
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  parameters: []

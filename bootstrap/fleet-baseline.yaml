@@ -1,0 +1,27 @@
+# fleet-baseline.yaml - Layer 1: applies the baseline ArgoCDApplicationTemplates
+# to the vCP cluster. directory app with recurse OFF, so only the top-level
+# baseline/*.yaml templates are applied. The chart under baseline/charts and the
+# manifests under baseline/manifests are sources for those templates and must NOT
+# be applied directly here.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fleet-baseline
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+    targetRevision: main
+    path: baseline
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vcluster-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

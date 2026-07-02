@@ -1,0 +1,35 @@
+# root.yaml - the self-managing app-of-apps.
+#
+# This is the same Application that the Argo CD Helm install seeds via
+# extraObjects (see kpi-vcluster/manifests/argocd/argocd-values-workers.yaml).
+# Once Argo CD reconciles this directory, the git copy below becomes the owner
+# of "root", so every later change flows through git. The seed in the Helm
+# values is only used the first time a cluster comes up.
+#
+# root recurses bootstrap/, so dropping a new Application manifest in this
+# directory is all it takes to add another managed app to the fleet.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Sync the root before the children it manages.
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  project: default
+  source:
+    repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+    targetRevision: main
+    path: bootstrap
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

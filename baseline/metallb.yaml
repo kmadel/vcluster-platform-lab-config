@@ -1,0 +1,30 @@
+# metallb.yaml - uniform baseline app (the MetalLB controller + speaker).
+#
+# The controller install is identical everywhere. The per-cluster IP pool is NOT
+# here; it lives in metallb-config.yaml, which reads the pool from the Cluster
+# annotation. Splitting "uniform install" from "per-cluster config" keeps each
+# template readable instead of one template full of conditionals.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: metallb
+spec:
+  displayName: "MetalLB"
+  owner:
+    team: loft-admins
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: https://metallb.github.io/metallb
+        chart: metallb
+        targetRevision: 0.14.9
+      destination:
+        namespace: metallb-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  parameters: []

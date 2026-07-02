@@ -1,0 +1,40 @@
+# metallb-config.yaml - the per-cluster baseline app (annotation-driven).
+#
+# THIS is the pattern the whole design hangs on: one template, divergent values
+# per cluster, with the difference read off the target Cluster's annotation via
+# .Values.loft.clusterAnnotations. The vCP reconciler loads the destination
+# Cluster and exposes its annotations under .Values.loft.clusterAnnotations
+# (the same BuildLoftValuesForInstance path the tenant flow uses), so the line
+# below resolves to each cluster's own MetalLB pool at delivery time.
+#
+# It sources a tiny in-repo wrapper chart (baseline/charts/metallb-config) that
+# renders the IPAddressPool + L2Advertisement from .Values.addressPool.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: metallb-config
+spec:
+  displayName: "MetalLB Pool (per-cluster)"
+  owner:
+    team: loft-admins
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+        targetRevision: main
+        path: baseline/charts/metallb-config
+        helm:
+          releaseName: metallb-config
+          # Read the pool off the target Cluster's annotation. This {{ ... }} is
+          # rendered by the platform (vCP), not by the Layer-1 Argo CD that
+          # applies this file, so it must stay literal in git.
+          values: |
+            addressPool: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/metallb-pool" }}'
+      destination:
+        namespace: metallb-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+  parameters: []

@@ -1,0 +1,32 @@
+# fleet-clusters.yaml - Layer 1: applies the annotated Cluster parameter sheets
+# to the vCP cluster. directory app (plain manifests), recurse off.
+#
+# Note: selfHeal is left OFF here. These objects often already exist for connected
+# clusters, and the connection credentials are managed out of band; you usually
+# want Argo CD to reconcile the annotations/labels without fighting the live
+# Cluster object. Sync manually or flip selfHeal on once you are sure Argo CD
+# should own the whole resource.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fleet-clusters
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+    targetRevision: main
+    path: clusters
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vcluster-platform
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - ServerSideApply=true

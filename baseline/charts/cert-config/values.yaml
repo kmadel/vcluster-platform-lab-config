@@ -1,0 +1,15 @@
+# Set by the cert-config ArgoCDApplicationTemplate from the target Cluster's
+# fleet.lab.kurtmadel.com/* annotations.
+
+# Base domain, e.g. lab.kurtmadel.com. Drives the cert dnsNames and secret names
+# (<base-dashed>-tls for *.<base>, apps-<base-dashed>-tls for *.apps.<base>),
+# matching envoy-gateway-config's certificateRefs.
+baseDomain: ""
+
+# The cert-manager issuer that signs these certs. Must support wildcards (DNS01).
+clusterIssuer: ""
+issuerKind: ClusterIssuer
+
+# Add the apex domain (<base>) to the wildcard cert SAN. The lab convention is
+# wildcard-only, so this defaults off.
+includeApex: false

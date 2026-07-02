@@ -1,0 +1,10 @@
+apiVersion: v2
+name: cert-config
+description: >-
+  Per-cluster cert-manager Certificates for the Envoy edge: the wildcard and
+  apps-wildcard TLS secrets the "lab" Gateway listeners reference, issued by the
+  cluster's ClusterIssuer. Secret names derive from the base domain so they line
+  up with envoy-gateway-config.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

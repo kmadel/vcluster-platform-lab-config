@@ -1,0 +1,33 @@
+# envoy-gateway.yaml - uniform baseline app (the controller install).
+#
+# The Envoy Gateway controller is identical on every control plane cluster, so
+# this template is uniform. The per-cluster edge (GatewayClass, EnvoyProxy with
+# its MetalLB IP, and the "lab" Gateway listeners) is the sibling
+# envoy-gateway-config.yaml, which reads the base domain, LoadBalancer IP, and
+# Platform management-cluster hostname off the target Cluster's annotations.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: envoy-gateway
+spec:
+  displayName: "Envoy Gateway"
+  owner:
+    team: loft-admins
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: oci://docker.io/envoyproxy
+        chart: gateway-helm
+        targetRevision: v1.2.4
+        helm:
+          releaseName: envoy-gateway
+      destination:
+        namespace: envoy-gateway-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  parameters: []
