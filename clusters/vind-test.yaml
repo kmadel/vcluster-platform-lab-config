@@ -1,0 +1,20 @@
+apiVersion: management.loft.sh/v1
+kind: Cluster
+metadata:
+  name: vind-test
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    fleet.lab.kurtmadel.com/metallb-pool: "192.168.49.131-192.168.49.140"
+    fleet.lab.kurtmadel.com/gateway-lb-ip: "192.168.51.131"
+    fleet.lab.kurtmadel.com/base-domain: "*.vind.lab.kurtmadel.com"
+    fleet.lab.kurtmadel.com/cluster-issuer: "letsencrypt-prod"
+    fleet.lab.kurtmadel.com/profiles: "control-plane-baseline"
+    # no platform-hostname: agent control plane clusters do not host the platform
+  labels:
+    fleet.lab.kurtmadel.com/baseline: "true"
+spec:
+  displayName: "vind cluster for vCP fleet gitops test"
+  # fleet-binding-controller only reconciles Clusters with argoCD.enabled: true.
+  argoCD:
+    enabled: true
+    connector: demo-lab
