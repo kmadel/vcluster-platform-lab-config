@@ -21,3 +21,5 @@ spec:
   argoCD:
     enabled: true
     connector: demo-lab
+  owner:
+    user: admin
