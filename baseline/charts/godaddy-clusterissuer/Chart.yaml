@@ -1,0 +1,6 @@
+apiVersion: v2
+name: godaddy-clusterissuer
+description: Per-cluster Let's Encrypt production ClusterIssuer using GoDaddy DNS-01.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

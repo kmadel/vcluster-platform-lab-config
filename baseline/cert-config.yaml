@@ -5,8 +5,8 @@
 # ClusterIssuer. Deployed into envoy-gateway-system so the name-only
 # certificateRefs on the Gateway resolve to these secrets.
 #
-# Depends on cert-manager (CRDs + a working ClusterIssuer); Argo CD retries until
-# both exist. Wildcard certs require a DNS01 issuer.
+# The baseline profile gates this app on godaddy-clusterissuer, which in turn
+# depends on the webhook and cert-manager. Wildcard certs require DNS-01.
 apiVersion: management.loft.sh/v1
 kind: ArgoCDApplicationTemplate
 metadata:

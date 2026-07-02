@@ -18,7 +18,7 @@ platformHostname: ""
 externalTrafficPolicy: Cluster
 
 # When true, annotates the Envoy edge LoadBalancer Service with
-# external-dns.kubernetes.io/hostname so external-dns (baseline/external-dns.yaml)
+# external-dns.alpha.kubernetes.io/hostname so external-dns (baseline/external-dns.yaml)
 # publishes DNS records for this cluster's wildcard listeners (and the
 # platformHostname listener, if set). Off by default; only takes effect if the
 # external-dns app is also enabled for this cluster.

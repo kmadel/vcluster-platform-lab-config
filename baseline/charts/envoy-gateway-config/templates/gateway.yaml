@@ -26,7 +26,7 @@ spec:
         annotations:
           metallb.io/loadBalancerIPs: {{ .Values.gatewayLoadBalancerIP | quote }}
           {{- if .Values.externalDNS.enabled }}
-          external-dns.kubernetes.io/hostname: {{ list (printf "*.%s" $b) (printf "*.apps.%s" $b) .Values.platformHostname | compact | join "," | quote }}
+          external-dns.alpha.kubernetes.io/hostname: {{ list (printf "*.%s" $b) (printf "*.apps.%s" $b) .Values.platformHostname | compact | join "," | quote }}
           {{- end }}
 ---
 apiVersion: gateway.networking.k8s.io/v1

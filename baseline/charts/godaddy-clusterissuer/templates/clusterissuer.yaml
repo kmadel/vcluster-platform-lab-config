@@ -1,0 +1,27 @@
+{{- if not .Values.issuerName }}{{ fail "issuerName is required (set fleet.lab.kurtmadel.com/cluster-issuer on the Cluster)" }}{{- end }}
+{{- if not .Values.dnsZone }}{{ fail "dnsZone is required (set fleet.lab.kurtmadel.com/base-domain on the Cluster)" }}{{- end }}
+{{- $accountKeySecretName := default (printf "%s-account-key" .Values.issuerName) .Values.accountKeySecretName }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.issuerName | quote }}
+spec:
+  acme:
+    email: {{ .Values.email | quote }}
+    server: {{ .Values.acmeServer | quote }}
+    privateKeySecretRef:
+      name: {{ $accountKeySecretName | quote }}
+    solvers:
+      - selector:
+          dnsZones:
+            - {{ .Values.dnsZone | quote }}
+        dns01:
+          webhook:
+            groupName: {{ .Values.webhook.groupName | quote }}
+            solverName: {{ .Values.webhook.solverName | quote }}
+            config:
+              apiKeySecretRef:
+                name: {{ .Values.webhook.credentialSecretName | quote }}
+                key: {{ .Values.webhook.credentialSecretKey | quote }}
+              production: {{ .Values.webhook.production }}
+              ttl: {{ .Values.webhook.ttl }}

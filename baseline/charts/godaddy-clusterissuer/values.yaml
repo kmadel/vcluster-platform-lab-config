@@ -1,0 +1,14 @@
+issuerName: ""
+dnsZone: ""
+
+email: km@kurtmadel.com
+acmeServer: https://acme-v02.api.letsencrypt.org/directory
+accountKeySecretName: ""
+
+webhook:
+  groupName: acme.kurtmadel.com
+  solverName: godaddy
+  credentialSecretName: godaddy-api-key
+  credentialSecretKey: token
+  production: true
+  ttl: 600

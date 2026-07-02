@@ -1,0 +1,49 @@
+# godaddy-webhook.yaml - GoDaddy DNS-01 solver for cert-manager.
+#
+# The webhook must start after cert-manager and must use the same groupName as
+# the ClusterIssuer solver. Credentials stay out of Git in the
+# cert-manager/godaddy-api-key Secret.
+#
+# Placement is optional and per cluster. Set this annotation to pin the webhook
+# to a specific node (for example, kpi5-spark-c01 on the Spark cluster):
+#
+#   fleet.lab.kurtmadel.com/godaddy-webhook-node: <node-name>
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: godaddy-webhook
+spec:
+  displayName: "cert-manager GoDaddy DNS-01 webhook"
+  owner:
+    team: loft-admins
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: https://snowdrop.github.io/godaddy-webhook
+        chart: godaddy-webhook
+        targetRevision: 0.7.0
+        helm:
+          releaseName: acme-webhook
+          # Rendered by vCluster Platform per target Cluster.
+          values: |
+            groupName: acme.kurtmadel.com
+            {{ with index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/godaddy-webhook-node" }}
+            nodeSelector:
+              kubernetes.io/hostname: '{{ . }}'
+            tolerations:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+                effect: NoSchedule
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+                effect: NoSchedule
+            {{ end }}
+      destination:
+        namespace: cert-manager
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
