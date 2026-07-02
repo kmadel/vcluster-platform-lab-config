@@ -1,0 +1,11 @@
+external-dns: {}
+
+dnsCleanup:
+  enabled: true
+  zone: ""
+  ownerId: ""
+  credentialSecretName: godaddy-api-credentials
+  image:
+    repository: python
+    tag: 3.13.5-alpine3.22
+    pullPolicy: IfNotPresent

@@ -4,6 +4,7 @@
 {{- $dash := $b | replace "." "-" -}}
 {{- $wildcardTls := default (printf "%s-tls" $dash) .Values.tls.wildcardSecretName -}}
 {{- $appsTls := default (printf "apps-%s-tls" $dash) .Values.tls.appsSecretName -}}
+{{- $envoyProxyConfig := dict "baseDomain" .Values.baseDomain "externalDNS" .Values.externalDNS "externalTrafficPolicy" .Values.externalTrafficPolicy "gatewayLoadBalancerIP" .Values.gatewayLoadBalancerIP "platformHostname" .Values.platformHostname "templateRevision" "external-dns-alpha-v1" -}}
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
@@ -37,6 +38,13 @@ metadata:
 spec:
   gatewayClassName: eg
   infrastructure:
+    annotations:
+      # This is part of Gateway.spec so proxy input changes increment the
+      # Gateway generation and force Envoy Gateway 1.2.x to reconcile.
+      fleet.lab.kurtmadel.com/envoy-proxy-config-hash: {{ $envoyProxyConfig | toJson | sha256sum | quote }}
+      {{- if .Values.externalDNS.enabled }}
+      external-dns.alpha.kubernetes.io/hostname: {{ list (printf "*.%s" $b) (printf "*.apps.%s" $b) .Values.platformHostname | compact | join "," | quote }}
+      {{- end }}
     parametersRef:
       group: gateway.envoyproxy.io
       kind: EnvoyProxy

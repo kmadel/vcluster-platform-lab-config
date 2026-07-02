@@ -1,0 +1,140 @@
+{{- if .Values.dnsCleanup.enabled }}
+{{- $zone := required "dnsCleanup.zone is required" .Values.dnsCleanup.zone -}}
+{{- $ownerID := required "dnsCleanup.ownerId is required" .Values.dnsCleanup.ownerId -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: external-dns-record-cleanup
+  annotations:
+    # The credential Secret is created out of band and remains available after
+    # Argo removes the ExternalDNS resources.
+    argocd.argoproj.io/hook: PostDelete
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: external-dns-record-cleanup
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cleanup
+          image: "{{ .Values.dnsCleanup.image.repository }}:{{ .Values.dnsCleanup.image.tag }}"
+          imagePullPolicy: {{ .Values.dnsCleanup.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          env:
+            - name: DNS_ZONE
+              value: {{ $zone | quote }}
+            - name: TXT_OWNER_ID
+              value: {{ $ownerID | quote }}
+            - name: GODADDY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dnsCleanup.credentialSecretName }}
+                  key: api-key
+            - name: GODADDY_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dnsCleanup.credentialSecretName }}
+                  key: api-secret
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          command:
+            - python
+            - -c
+          args:
+            - |
+              import json
+              import os
+              import urllib.error
+              import urllib.parse
+              import urllib.request
+
+              api = "https://api.godaddy.com/v1"
+              zone = os.environ["DNS_ZONE"]
+              owner = os.environ["TXT_OWNER_ID"]
+              headers = {
+                  "Accept": "application/json",
+                  "Authorization": "sso-key {}:{}".format(
+                      os.environ["GODADDY_API_KEY"],
+                      os.environ["GODADDY_API_SECRET"],
+                  ),
+              }
+
+              def request(method, path):
+                  req = urllib.request.Request(
+                      api + path,
+                      headers=headers,
+                      method=method,
+                  )
+                  try:
+                      with urllib.request.urlopen(req, timeout=30) as response:
+                          body = response.read()
+                          return json.loads(body) if body else None
+                  except urllib.error.HTTPError as error:
+                      body = error.read().decode("utf-8", errors="replace")
+                      raise RuntimeError(
+                          "{} {} failed: HTTP {} {}".format(
+                              method, path, error.code, body
+                          )
+                      ) from error
+
+              escaped_zone = urllib.parse.quote(zone, safe="")
+              records = request(
+                  "GET", "/domains/{}/records".format(escaped_zone)
+              )
+              owner_marker = "external-dns/owner={}".format(owner)
+              owned_names = sorted({
+                  record["name"]
+                  for record in records
+                  if record.get("type") == "TXT"
+                  and "heritage=external-dns" in str(record.get("data", ""))
+                  and owner_marker in str(record.get("data", ""))
+              })
+
+              managed_types = {"A", "AAAA", "CNAME"}
+              for name in owned_names:
+                  escaped_name = urllib.parse.quote(name, safe="")
+                  types = sorted({
+                      record["type"]
+                      for record in records
+                      if record.get("name") == name
+                      and record.get("type") in managed_types
+                  })
+                  for record_type in types:
+                      request(
+                          "DELETE",
+                          "/domains/{}/records/{}/{}".format(
+                              escaped_zone, record_type, escaped_name
+                          ),
+                      )
+                      print("Deleted {} {}.{}".format(record_type, name, zone))
+
+                  request(
+                      "DELETE",
+                      "/domains/{}/records/TXT/{}".format(
+                          escaped_zone, escaped_name
+                      ),
+                  )
+                  print("Deleted TXT ownership record {}.{}".format(name, zone))
+
+              print(
+                  "Cleaned {} ExternalDNS-owned name(s) for owner {}".format(
+                      len(owned_names), owner
+                  )
+              )
+{{- end }}

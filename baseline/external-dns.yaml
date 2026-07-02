@@ -32,29 +32,33 @@ spec:
     spec:
       project: default
       source:
-        repoURL: https://kubernetes-sigs.github.io/external-dns/
-        chart: external-dns
-        targetRevision: 1.21.1
+        repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+        targetRevision: main
+        path: baseline/charts/external-dns
         helm:
           releaseName: external-dns
           # Rendered by the platform (vCP) per target Cluster; keep literal.
           values: |
-            provider:
-              name: godaddy
-            env:
-              - name: EXTERNAL_DNS_GODADDY_API_KEY
-                valueFrom:
-                  secretKeyRef:
-                    name: godaddy-api-credentials
-                    key: api-key
-              - name: EXTERNAL_DNS_GODADDY_API_SECRET
-                valueFrom:
-                  secretKeyRef:
-                    name: godaddy-api-credentials
-                    key: api-secret
-            domainFilters:
-              - '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/dns-zone" }}'
-            txtOwnerId: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/base-domain" }}'
+            external-dns:
+              provider:
+                name: godaddy
+              env:
+                - name: EXTERNAL_DNS_GODADDY_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: godaddy-api-credentials
+                      key: api-key
+                - name: EXTERNAL_DNS_GODADDY_API_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: godaddy-api-credentials
+                      key: api-secret
+              domainFilters:
+                - '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/dns-zone" }}'
+              txtOwnerId: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/base-domain" }}'
+            dnsCleanup:
+              zone: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/dns-zone" }}'
+              ownerId: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/base-domain" }}'
       destination:
         namespace: external-dns
       syncPolicy:
