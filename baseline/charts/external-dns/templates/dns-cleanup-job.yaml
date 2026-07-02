@@ -98,12 +98,23 @@ spec:
                   "GET", "/domains/{}/records".format(escaped_zone)
               )
               owner_marker = "external-dns/owner={}".format(owner)
+
+              def is_owned(record):
+                  if record.get("type") != "TXT":
+                      return False
+                  metadata = {
+                      item.strip()
+                      for item in str(record.get("data", "")).split(",")
+                  }
+                  return (
+                      "heritage=external-dns" in metadata
+                      and owner_marker in metadata
+                  )
+
               owned_names = sorted({
                   record["name"]
                   for record in records
-                  if record.get("type") == "TXT"
-                  and "heritage=external-dns" in str(record.get("data", ""))
-                  and owner_marker in str(record.get("data", ""))
+                  if is_owned(record)
               })
 
               managed_types = {"A", "AAAA", "CNAME"}
