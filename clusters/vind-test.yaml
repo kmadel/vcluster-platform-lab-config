@@ -14,6 +14,8 @@ metadata:
     fleet.lab.kurtmadel.com/baseline: "true"
 spec:
   displayName: "vind cluster for vCP fleet gitops test"
+  config: {}
+  networkPeer: true
   # fleet-binding-controller only reconciles Clusters with argoCD.enabled: true.
   argoCD:
     enabled: true
