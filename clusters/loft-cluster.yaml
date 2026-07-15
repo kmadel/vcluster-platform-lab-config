@@ -1,0 +1,19 @@
+# Metadata-only server-side-apply overlay for the local Cluster resource that
+# vCluster Platform creates during installation. Platform remains the owner of
+# spec, connection state, finalizers, and status; Git owns only fleet selection
+# and non-secret parameters consumed by the Argo CD templates.
+apiVersion: management.loft.sh/v1
+kind: Cluster
+metadata:
+  name: loft-cluster
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    fleet.lab.kurtmadel.com/metallb-pool: "192.168.50.0/24"
+    fleet.lab.kurtmadel.com/gateway-lb-ip: "192.168.50.10"
+    fleet.lab.kurtmadel.com/base-domain: "lab.kurtmadel.com"
+    fleet.lab.kurtmadel.com/dns-zone: "kurtmadel.com"
+    fleet.lab.kurtmadel.com/cluster-issuer: "letsencrypt-prod"
+    fleet.lab.kurtmadel.com/platform-hostname: "vcp.lab.kurtmadel.com"
+    fleet.lab.kurtmadel.com/profiles: "vcp-management-cluster-baseline,fleet-observability-platform"
+  labels:
+    fleet.lab.kurtmadel.com/baseline: "true"
