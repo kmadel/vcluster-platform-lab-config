@@ -14,6 +14,5 @@ metadata:
     fleet.lab.kurtmadel.com/dns-zone: "kurtmadel.com"
     fleet.lab.kurtmadel.com/cluster-issuer: "letsencrypt-prod"
     fleet.lab.kurtmadel.com/platform-hostname: "vcp.lab.kurtmadel.com"
-    fleet.lab.kurtmadel.com/profiles: "vcp-management-cluster-baseline,fleet-observability-platform"
-  labels:
-    fleet.lab.kurtmadel.com/baseline: "true"
+    fleet.lab.kurtmadel.com/profiles: "fleet-observability-platform"
+    fleet-observability-grafana.argocd-template-param.fleet.lab.kurtmadel.com/platformHost: "vcp.lab.kurtmadel.com"
