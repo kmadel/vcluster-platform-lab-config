@@ -1,0 +1,10 @@
+apiVersion: management.loft.sh/v1
+kind: Cluster
+metadata:
+  name: spark-cluster
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    fleet.lab.kurtmadel.com/profiles: >-
+      fleet-observability-collector
+    cluster-collector.argocd-template-param.fleet.lab.kurtmadel.com/otlpEndpoint: >-
+      https://otel.lab.kurtmadel.com
