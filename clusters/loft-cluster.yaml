@@ -16,3 +16,5 @@ metadata:
     fleet.lab.kurtmadel.com/platform-hostname: "vcp.lab.kurtmadel.com"
     fleet.lab.kurtmadel.com/profiles: "fleet-observability-platform"
     fleet-observability-grafana.argocd-template-param.fleet.lab.kurtmadel.com/platformHost: "vcp.lab.kurtmadel.com"
+    cluster-collector.argocd-template-param.fleet.lab.kurtmadel.com/otlpEndpoint: >-
+      https://otel.lab.kurtmadel.com
