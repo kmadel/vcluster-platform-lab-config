@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: private-node-kubevirt-provider-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+    targetRevision: main
+    path: private-node-kubevirt-provider
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vcluster-platform
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - ServerSideApply=true
