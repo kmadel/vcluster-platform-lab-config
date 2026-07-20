@@ -39,7 +39,6 @@ spec:
           argoCD:
             enabled: true
             connector: demo-lab
-            enabled: true
     instanceTemplate:
       metadata:
         labels:
