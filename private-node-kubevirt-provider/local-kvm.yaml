@@ -6,6 +6,9 @@ metadata:
 spec:
   virtualCluster:
     name: local-kvm-provider
+    owner:
+      # Use a Platform User resource name (for example "admin"), not an email.
+      user: admin
     templateRef:
       name: private-node-kubevirt-provider
   connectedCluster:
