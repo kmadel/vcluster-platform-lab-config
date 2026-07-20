@@ -1,0 +1,49 @@
+# Replace the connector, host cluster, storage class, and chart version for the lab.
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterTemplate
+metadata:
+  name: private-node-kubevirt-provider
+spec:
+  displayName: Private Node KubeVirt provider control plane
+  template:
+    pro:
+      enabled: true
+    helmRelease:
+      chart:
+        name: vcluster
+        version: 0.36.0
+      values: |-
+        privateNodes:
+          enabled: true
+          autoNodes:
+            - provider: us-va-blacksburg-dc1
+              static:
+                - name: node-pool-1
+                  quantity: 1
+                  nodeTypeSelector:
+                    - property: vcluster.com/profile
+                      operator: In
+                      values:
+                        - xlarge
+          vpn:
+            enabled: true
+        networking:
+          podCIDR: 10.64.0.0/16
+          serviceCIDR: 10.128.0.0/16
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
+        integrations:
+          argoCD:
+            enabled: true
+            connector: demo-lab
+            enabled: true
+    instanceTemplate:
+      metadata:
+        labels:
+          infra.loft.sh/purpose: kubevirt-provider
+  access:
+    - verbs: [get]
+      users: ["*"]
