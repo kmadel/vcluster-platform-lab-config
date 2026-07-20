@@ -6,6 +6,10 @@ metadata:
 spec:
   virtualCluster:
     name: local-kvm-provider
+    clusterRef:
+      # Host the Private Node vCluster control plane on the Platform cluster so its
+      # agent peers directly with loft instead of relaying through loft-tls-proxy.
+      cluster: loft-cluster
     owner:
       # Use a Platform User resource name (for example "admin"), not an email.
       user: admin
