@@ -52,7 +52,18 @@ spec:
                     infra:
                       nodePlacement:
                         affinity:
-                          nodeAffinity: null
+                          # KubeVirt's install strategy dumper and infra
+                          # components default to role-label affinity. Private
+                          # Node vClusters may have no node-role labels, so pin
+                          # infra components to Linux nodes explicitly.
+                          nodeAffinity:
+                            requiredDuringSchedulingIgnoredDuringExecution:
+                              nodeSelectorTerms:
+                                - matchExpressions:
+                                    - key: kubernetes.io/os
+                                      operator: In
+                                      values:
+                                        - linux
                     configuration:
                       developerConfiguration:
                         # Explicitly require /dev/kvm; never hide missing KVM by
