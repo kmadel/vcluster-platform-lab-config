@@ -41,6 +41,13 @@ spec:
               enabled: true
               helmValues: |-
                 kubevirt:
+                  operator:
+                    # Private Node vClusters have no control-plane node, so KubeVirt's
+                    # default virt-operator nodeAffinity (requires control-plane/master)
+                    # can never match. Null it so virt-operator schedules on the private
+                    # worker nodes; nodeSelector (os: linux) and soft anti-affinity remain.
+                    affinity:
+                      nodeAffinity: null
                   spec:
                     configuration:
                       developerConfiguration:
