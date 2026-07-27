@@ -49,6 +49,10 @@ spec:
                     affinity:
                       nodeAffinity: null
                   spec:
+                    infra:
+                      nodePlacement:
+                        affinity:
+                          nodeAffinity: null
                     configuration:
                       developerConfiguration:
                         # Explicitly require /dev/kvm; never hide missing KVM by
