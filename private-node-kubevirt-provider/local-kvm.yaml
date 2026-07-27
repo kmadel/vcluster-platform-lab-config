@@ -2,7 +2,7 @@ apiVersion: infra.loft.sh/v1alpha1
 kind: KubeVirtProviderCluster
 metadata:
   name: local-kvm-provider
-  namespace: p-default
+  namespace: p-platform
 spec:
   virtualCluster:
     name: local-kvm-provider
