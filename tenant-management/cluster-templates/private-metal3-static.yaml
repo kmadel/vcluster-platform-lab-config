@@ -1,0 +1,179 @@
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterTemplate
+metadata:
+  name: private-nodes-metal3-static
+spec:
+  displayName: Private Nodes — Metal3 Static AutoNodes
+  description: |
+    Private node tenant cluster  backed by fixed-size bare metal node pools provisioned through the Metal3 NodeProvider. Each node class has its own desired quantity, which is a better fit for AI-cloud style reserved capacity than a purely dynamic scale-up model.
+  owner:
+    team: loft-admins
+  template:
+    metadata: {}
+    instanceTemplate:
+      metadata: {}
+    pro: {}
+    helmRelease:
+      chart:
+        version: 0.36.0
+      values: |
+        privateNodes:
+          enabled: true
+          vpn:
+            enabled: true
+          autoNodes:
+            - provider: us-va-blacksburg-dc1
+              static:
+                {{ if ne .Values.smallNodeCount "0" }}
+                - name: static-small-nodes
+                  quantity: {{ .Values.smallNodeCount }}
+                  nodeTypeSelector:
+                    - property: vcluster.com/profile
+                      operator: In
+                      values:
+                        - small
+                    {{- if and .Values.rackSelector (ne (trim .Values.rackSelector) "") (ne (trim .Values.rackSelector) "all") }}
+                    - property: vcluster.com/rack
+                      operator: In
+                      values:
+                        {{- range $rack := splitList "," .Values.rackSelector }}
+                        {{- $trimmedRack := trim $rack }}
+                        {{- if ne $trimmedRack "" }}
+                        - {{ $trimmedRack }}
+                        {{- end }}
+                        {{- end }}
+                    {{- end }}
+                {{ end }}
+                {{ if ne .Values.mediumNodeCount "0" }}
+                - name: static-medium-nodes
+                  quantity: {{ .Values.mediumNodeCount }}
+                  nodeTypeSelector:
+                    - property: vcluster.com/profile
+                      operator: In
+                      values:
+                        - medium
+                    {{- if and .Values.rackSelector (ne (trim .Values.rackSelector) "") (ne (trim .Values.rackSelector) "all") }}
+                    - property: vcluster.com/rack
+                      operator: In
+                      values:
+                        {{- range $rack := splitList "," .Values.rackSelector }}
+                        {{- $trimmedRack := trim $rack }}
+                        {{- if ne $trimmedRack "" }}
+                        - {{ $trimmedRack }}
+                        {{- end }}
+                        {{- end }}
+                    {{- end }}
+                {{ end }}
+                {{ if ne .Values.largeNodeCount "0" }}
+                - name: static-large-nodes
+                  quantity: {{ .Values.largeNodeCount }}
+                  nodeTypeSelector:
+                    - property: vcluster.com/profile
+                      operator: In
+                      values:
+                        - large
+                    {{- if and .Values.rackSelector (ne (trim .Values.rackSelector) "") (ne (trim .Values.rackSelector) "all") }}
+                    - property: vcluster.com/rack
+                      operator: In
+                      values:
+                        {{- range $rack := splitList "," .Values.rackSelector }}
+                        {{- $trimmedRack := trim $rack }}
+                        {{- if ne $trimmedRack "" }}
+                        - {{ $trimmedRack }}
+                        {{- end }}
+                        {{- end }}
+                    {{- end }}
+                {{ end }}
+                {{ if ne .Values.xlargeNodeCount "0" }}
+                - name: static-xlarge-nodes
+                  quantity: {{ .Values.xlargeNodeCount }}
+                  nodeTypeSelector:
+                    - property: vcluster.com/profile
+                      operator: In
+                      values:
+                        - xlarge
+                    {{- if and .Values.rackSelector (ne (trim .Values.rackSelector) "") (ne (trim .Values.rackSelector) "all") }}
+                    - property: vcluster.com/rack
+                      operator: In
+                      values:
+                        {{- range $rack := splitList "," .Values.rackSelector }}
+                        {{- $trimmedRack := trim $rack }}
+                        {{- if ne $trimmedRack "" }}
+                        - {{ $trimmedRack }}
+                        {{- end }}
+                        {{- end }}
+                    {{- end }}
+                {{ end }}
+        networking:
+          podCIDR: 10.64.0.0/16
+          serviceCIDR: 10.128.0.0/16
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
+          distro:
+            k8s:
+              version: "{{ .Values.kubernetesVersion }}"
+        integrations:
+          argoCD:
+            enabled: true
+            connector: demo-lab
+    accessPoint:
+      ingress: {}
+    forwardTokenMode: Off
+    spaceTemplate:
+      metadata: {}
+  parameters:
+    - variable: kubernetesVersion
+      label: Kubernetes Version
+      description: |
+        Control plane Kubernetes version. Updating this value triggers a rolling upgrade of the vCluster control plane while the fixed worker pools remain managed through the NodeClaim lifecycle.
+      options:
+        - v1.34.9
+        - v1.35.6
+        - v1.36.2
+      defaultValue: v1.35.6
+    - variable: smallNodeCount
+      label: Small Node Count
+      description: |
+        Desired quantity for the static small-capacity pool. Capacity can come from any rack matched by the optional customer/rack selectors.
+      options:
+        - '0'
+        - '1'
+        - '2'
+        - '3'
+        - '4'
+      defaultValue: '1'
+    - variable: mediumNodeCount
+      label: Medium Node Count
+      description: |
+        Desired quantity for the static medium-capacity pool. The default demo inventory has one managed medium-capacity host.
+      options:
+        - '0'
+        - '1'
+        - '2'
+      defaultValue: '0'
+    - variable: largeNodeCount
+      label: Large Node Count
+      description: |
+        Desired quantity for the static large-capacity pool. The default demo inventory has one large-capacity host per rack.
+      options:
+        - '0'
+        - '1'
+        - '2'
+      defaultValue: '1'
+    - variable: xlargeNodeCount
+      label: Xlarge Node Count
+      description: |
+        Desired quantity for the static xlarge-capacity pool. The default demo inventory has one xlarge-capacity host per rack.
+      options:
+        - '0'
+        - '1'
+        - '2'
+      defaultValue: '1'
+    - variable: rackSelector
+      label: Rack Selector
+      description: |
+        Optional comma-separated rack list such as `rack-a` or `rack-a,rack-b`. Leave empty to allow all racks for the selected customer set.
+status: {}

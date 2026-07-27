@@ -1,0 +1,85 @@
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterTemplate
+metadata:
+  name: private-nodes-metal3-dynamic
+spec:
+  displayName: Private Nodes — Metal3 Dynamic AutoNodes
+  description: |
+    Private node tenant cluster backed by bare metal nodes provisioned on demand via the Metal3 NodeProvider. Nodes are claimed from available BareMetalHosts, written with Ubuntu 24.04, and joined as workers automatically.
+  owner:
+    team: loft-admins
+  template:
+    metadata: {}
+    instanceTemplate:
+      metadata: {}
+    pro: {}
+    helmRelease:
+      chart:
+        version: 0.36.0
+      values: |
+        privateNodes:
+          enabled: true
+          vpn:
+            enabled: true
+          autoNodes:
+            - provider: us-va-blacksburg-dc1
+              dynamic:
+                - name: bm-dynamic-node-pool-1
+                  limits:
+                    cpu: '{{ .Values.cpuLimit }}'
+                  {{- if and .Values.rackSelector (ne (trim .Values.rackSelector) "") (ne (trim .Values.rackSelector) "all") }}
+                  nodeTypeSelector:
+                    - property: vcluster.com/rack
+                      operator: In
+                      values:
+                        {{- range $rack := splitList "," .Values.rackSelector }}
+                        {{- $trimmedRack := trim $rack }}
+                        {{- if ne $trimmedRack "" }}
+                        - {{ $trimmedRack }}
+                        {{- end }}
+                        {{- end }}
+                  {{- end }}
+        networking:
+          podCIDR: 10.64.0.0/16
+          serviceCIDR: 10.128.0.0/16
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
+          distro:
+            k8s:
+              version: "{{ .Values.kubernetesVersion }}"
+        integrations:
+          argoCD:
+            enabled: true
+            connector: demo-lab
+    accessPoint:
+      ingress: {}
+    forwardTokenMode: Off
+    spaceTemplate:
+      metadata: {}
+  parameters:
+    - variable: kubernetesVersion
+      label: Kubernetes Version
+      description: |
+        Control plane Kubernetes version. Updating this value triggers a rolling upgrade of the vCluster control plane. The bare metal node kubelet is re-provisioned separately via the NodeClaim lifecycle.
+      options:
+        - v1.34.9
+        - v1.35.6
+        - v1.36.2
+      defaultValue: v1.35.6
+    - variable: cpuLimit
+      label: CPU Limit
+      description: |
+        Maximum CPUs that can be provisioned by this node pool.
+      options:
+        - '2'
+        - '5'
+        - '7'
+        - '9'
+      defaultValue: '5'
+    - variable: rackSelector
+      label: Rack Selector
+      description: |
+        Optional comma-separated rack list such as `rack-a` or `rack-a,rack-b`. Leave empty to allow all racks for the selected customer set.
