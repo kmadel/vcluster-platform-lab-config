@@ -121,7 +121,7 @@ spec:
             connector: demo-lab
     accessPoint:
       ingress: {}
-    forwardTokenMode: Off
+    forwardTokenMode: "Off"
     spaceTemplate:
       metadata: {}
   parameters:
