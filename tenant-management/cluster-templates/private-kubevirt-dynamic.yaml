@@ -63,7 +63,7 @@ spec:
         Maximum CPUs that can be provisioned by this node pool.
       options:
         - '2'
-        - '5'
-        - '7'
-        - '9'
-      defaultValue: '5'
+        - '4'
+        - '6'
+        - '8'
+      defaultValue: '4'
