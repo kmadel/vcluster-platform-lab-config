@@ -1,0 +1,61 @@
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterTemplate
+metadata:
+  name: private-node-kubevirt-provider-dynamic
+spec:
+  displayName: Private Node KubeVirt provider control plane (Dynamic)
+  description: |
+    Private node vCluster backed by dynamically provisioned VMs via the KubeVirt NodeProvider.
+    Nodes are claimed from available node pool and joined as workers automatically.
+  template:
+    pro:
+      enabled: true
+    helmRelease:
+      chart:
+        name: vcluster
+        version: 0.36.0
+      values: |-
+        privateNodes:
+          enabled: true
+          autoNodes:
+            - provider: us-va-blacksburg-dc1
+              dynamic:
+                - name: node-pool-1
+                  limits:
+                    cpu: '{{ .Values.cpuLimit }}'
+                  nodeTypeSelector:
+                    - property: vcluster.com/profile
+                      operator: In
+                      values:
+                        - large
+                        - xlarge
+          vpn:
+            enabled: true
+        networking:
+          podCIDR: 10.64.0.0/16
+          serviceCIDR: 10.128.0.0/16
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
+        integrations:
+          argoCD:
+            enabled: true
+            connector: demo-lab
+    instanceTemplate:
+      metadata:
+        labels:
+          infra.loft.sh/purpose: kubevirt-provider
+  parameters:
+    - variable: cpuLimit
+      label: CPU Limit
+      description: Maximum CPUs that can be provisioned by this node pool.
+      options:
+        - '4'
+        - '8'
+        - '12'
+      defaultValue: '4'
+  access:
+    - verbs: [get]
+      users: ["*"]
