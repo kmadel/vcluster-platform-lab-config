@@ -100,7 +100,7 @@ spec:
             applications:
               - name: weblogic-domain
                 displayName: WebLogic Domain and HTTPRoute
-                target: vcluster
+                target: vCluster
                 template:
                   name: vcluster-weblogic-domain-app
                   parameters:
