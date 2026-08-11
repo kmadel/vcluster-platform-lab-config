@@ -26,6 +26,16 @@ spec:
           # Matches the WebLogic operator install flag:
           # --set "domainNamespaceLabelSelector=weblogic-operator=enabled"
           weblogic-operator: enabled
+      objects: |-
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: ocr-pull-secret
+          labels:
+            loft.sh/project-secret-name: ocr-pull-secret
+        data:
+          .dockerconfigjson: e30K
+        type: kubernetes.io/dockerconfigjson
     pro:
       enabled: true
     helmRelease:
