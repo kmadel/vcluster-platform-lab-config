@@ -1,0 +1,56 @@
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: vcluster-weblogic-domain-app
+spec:
+  displayName: vCluster WebLogic Domain App
+  description: >-
+    Deploys the tenant-side WebLogic Domain, demo HTTP application,
+    ACK ElastiCache resource, jobs, and HTTPRoute.
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/weblogic-apps.git
+        targetRevision: main
+        path: charts/weblogic-domain
+        helm:
+          values: |-
+            namespace: "{{ .Values.namespace }}"
+            domainUID: "{{ .Values.domainUID }}"
+            managedServerCount: 3
+            credentialsSecretName: wi-domain-credentials
+            domain:
+              # OCR GA image: OK for demo/development under Oracle OTN terms
+              # after accepting the OCR terms. Use CPU/custom patched images
+              # for production-like runs. This demo app uses javax.servlet.*,
+              # so 14.1.2.0 avoids a Jakarta EE 9.1 migration during the demo.
+              # To use WebLogic 15.1.1.0, migrate the WAR to jakarta.servlet.*.
+              image: container-registry.oracle.com/middleware/weblogic:14.1.2.0-generic-jdk17-ol8
+              imagePullSecrets:
+                - name: ocr-pull-secret
+              auxiliaryImages:
+                - image: ghcr.io/YOUR_ORG/vcluster-weblogic-demo-aux:0.1.0
+                  imagePullPolicy: IfNotPresent
+            demoApp:
+              enabled: true
+              contextPath: "{{ .Values.appContextPath }}"
+            elasticache:
+              enabled: true
+              replicationGroupID: "{{ .Values.domainUID }}-cache"
+              cacheSubnetGroupName: vcluster-demo-cache-subnets
+              securityGroupIDs:
+                - sg-REPLACE_ME
+            httpRoute:
+              enabled: true
+              host: "{{ .Values.appHost }}"
+              parentRef:
+                name: shared-gw
+                namespace: envoy-gateway-system
+      destination: {}
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
