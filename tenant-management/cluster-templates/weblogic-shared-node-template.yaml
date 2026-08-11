@@ -57,8 +57,32 @@ spec:
             customResources:
               domains.weblogic.oracle:
                 enabled: true
+                patches:
+                  # WebLogic operator reconciles the synced Domain on the host.
+                  # These fields must point to the translated host-side names
+                  # of the synced Cluster and Secret objects.
+                  - path: spec.clusters[*].name
+                    reference:
+                      apiVersion: weblogic.oracle/v1
+                      kind: Cluster
+                  - path: spec.webLogicCredentialsSecret
+                    reference:
+                      apiVersion: v1
+                      kind: Secret
+                      namePath: name
+                  - path: spec.configuration.model.runtimeEncryptionSecret
+                    reference:
+                      apiVersion: v1
+                      kind: Secret
               clusters.weblogic.oracle:
                 enabled: true
+            secrets:
+              # Demo/local path: sync tenant-created WebLogic credentials and
+              # runtime encryption secrets so the host-side operator can read them.
+              # Production should replace this with ProjectSecret/ExternalSecret
+              # bootstrap for the exact secrets the operator needs.
+              enabled: true
+              all: true
             gatewayApi:
               # Tenants define routes; the shared Gateway itself stays host-owned.
               httpRoutes:
