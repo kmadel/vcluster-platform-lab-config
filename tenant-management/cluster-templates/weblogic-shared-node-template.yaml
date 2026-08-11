@@ -52,8 +52,6 @@ spec:
                 enabled: true
               clusters.weblogic.oracle:
                 enabled: true
-              replicationgroups.elasticache.services.k8s.aws:
-                enabled: true
             gatewayApi:
               # Tenants define routes; the shared Gateway itself stays host-owned.
               httpRoutes:
