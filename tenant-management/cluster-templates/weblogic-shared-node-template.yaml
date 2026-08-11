@@ -83,7 +83,7 @@ spec:
         integrations:
           argoCD:
             enabled: true
-            connector: vcluster-argocd
+            connector: demo-lab
 
         deploy:
           argoCD:
