@@ -18,7 +18,7 @@ spec:
           values: |-
             namespace: "{{ .Values.namespace }}"
             domainUID: "{{ .Values.domainUID }}"
-            managedServerCount: 3
+            managedServerCount: 1
             credentialsSecretName: wi-domain-credentials
             domain:
               # OCR GA image: OK for demo/development under Oracle OTN terms
