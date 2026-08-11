@@ -43,6 +43,13 @@ spec:
         # Pin this to the vCluster chart version approved for the POC.
         version: 0.36.0
       values: |-
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded: 
+                enabled: true
+          coredns:
+            embedded: true
         sync:
           # 5a. Sync the WebLogic CRDs up so the single host operator reconciles them.
           #     Match the versions your operator serves (Domain v9, Cluster v1 on operator 4.x).

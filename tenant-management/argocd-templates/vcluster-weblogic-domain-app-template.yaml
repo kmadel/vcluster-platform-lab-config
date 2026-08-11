@@ -36,7 +36,7 @@ spec:
               enabled: true
               contextPath: "{{ .Values.appContextPath }}"
             elasticache:
-              enabled: true
+              enabled: false
               replicationGroupID: "{{ .Values.domainUID }}-cache"
               cacheSubnetGroupName: vcluster-demo-cache-subnets
               securityGroupIDs:
