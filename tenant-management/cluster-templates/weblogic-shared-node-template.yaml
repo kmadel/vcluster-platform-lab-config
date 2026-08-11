@@ -81,14 +81,13 @@ spec:
                       from: All
 
         # 5c. Sleep Mode - shared nodes only, pre-production only. Perfect for Dev/QA/Lab/UAT.
-        sleepMode:
-          enabled: true
-          autoSleep:
+        sleep:
+          auto:
             afterInactivity: 2h
             schedule: "0 20 * * 1-5"      # also sleep weeknights at 20:00
-          autoWakeup:
-            schedule: "0 7 * * 1-5"       # wake weekday mornings at 07:00
-          timeZone: America/New_York
+            wakeup:
+              schedule: "0 7 * * 1-5"       # wake weekday mornings at 07:00
+            timeZone: America/New_York
 
         integrations:
           argoCD:
