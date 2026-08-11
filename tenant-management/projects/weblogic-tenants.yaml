@@ -1,0 +1,32 @@
+kind: Project
+apiVersion: management.loft.sh/v1
+metadata:
+  name: weblogic-tenants
+spec:
+  displayName: WebLogic Tenants
+  owner:
+    user: admin
+  quotas: {}
+  allowedClusters:
+    - name: vcluster-weblogic-demo
+  allowedTemplates:
+    - kind: VirtualClusterTemplate
+      group: storage.loft.sh
+      name: weblogic-shared-node
+  allowedNodeTypes: null
+  allowedNodeProfiles: null
+  requireTemplate: {}
+  requirePreset: {}
+  access:
+    - name: loft-admin-access
+      verbs:
+        - get
+        - update
+        - patch
+        - delete
+      subresources:
+        - '*'
+      users:
+        - admin
+  namespacePattern:
+    virtualCluster: p-{{.Values.loft.project}}-v-{{.Values.loft.name}}
