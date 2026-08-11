@@ -61,10 +61,11 @@ spec:
                   # WebLogic operator reconciles the synced Domain on the host.
                   # These fields must point to the translated host-side names
                   # of the synced Cluster and Secret objects.
-                  - path: spec.clusters[*].name
+                  - path: spec.clusters[*]
                     reference:
                       apiVersion: weblogic.oracle/v1
                       kind: Cluster
+                      namePath: name
                   - path: spec.webLogicCredentialsSecret
                     reference:
                       apiVersion: v1
