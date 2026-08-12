@@ -119,6 +119,15 @@ spec:
           argoCD:
             enabled: true
             connector: demo-lab
+        {{ if eq .Values.metallbEnabled "true" }}
+        deploy:
+          metallb:
+            enabled: true
+            ipAddressPool:
+              addresses:
+                - "{{ .Values.metallbAddressRange }}"
+              l2Advertisement: true
+        {{ end }}
     accessPoint:
       ingress: {}
     forwardTokenMode: "Off"
@@ -176,4 +185,17 @@ spec:
       label: Rack Selector
       description: |
         Optional comma-separated rack list such as `rack-a` or `rack-a,rack-b`. Leave empty to allow all racks for the selected customer set.
+    - variable: metallbEnabled
+      label: Install MetalLB
+      description: |
+        Optionally deploy MetalLB into the tenant cluster and create an L2 address pool from the provided address range.
+      options:
+        - 'false'
+        - 'true'
+      defaultValue: 'false'
+    - variable: metallbAddressRange
+      label: MetalLB Address Range
+      description: |
+        Address range or CIDR used for the optional MetalLB IPAddressPool, for example `192.168.50.200-192.168.50.210` or `192.168.50.0/24`.
+      defaultValue: 192.168.51.14-192.168.51.16
 status: {}
