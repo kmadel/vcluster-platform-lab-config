@@ -24,6 +24,7 @@ spec:
       description: "Endpoint of Write Gateway. Enter Cluster IP or Load Balancer address depending on the setup. Example: https://gateway-<connector>.vcluster-platform.svc.cluster.local:4318"
       type: string
       required: true
+      defaultValue: 'https://otel.lab.kurtmadel.com'
     - variable: bearerToken
       label: OTLP bearer token
       description: "Bearer token from an access key with metrics-writer permissions, sent on every OTLP request. Leave empty to keep the token out of the Argo Application: create a Secret named 'otel-otlp-auth' in the target namespace yourself, with key 'authorization' holding the value 'Bearer <token>'."
