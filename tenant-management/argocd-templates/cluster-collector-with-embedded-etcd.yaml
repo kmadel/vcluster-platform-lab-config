@@ -1,0 +1,547 @@
+# ClusterCollectorTemplate is the ArgoCDApplicationTemplate for the tenant cluster side
+# Fleet Observability bundle.
+apiVersion: storage.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: cluster-collector-with-embedded-etcd
+spec:
+  displayName: "Fleet Observability: Cluster Collector + Embedded etcd"
+  description: Deploys the cluster side Fleet Observability Collector with an embedded etcd scrape job.
+  parameters:
+    - variable: destinationNamespace
+      label: Destination Namespace
+      type: string
+      required: true
+      defaultValue: observability
+    - variable: project
+      label: ArgoCD Project
+      description: ArgoCD project the application belongs to. Change it to deploy into a different project.
+      type: string
+      required: true
+      defaultValue: default
+    - variable: otlpEndpoint
+      label: OTLP/HTTP endpoint
+      description: "Endpoint of Write Gateway. Enter Cluster IP or Load Balancer address depending on the setup. Example: https://gateway-<connector>.vcluster-platform.svc.cluster.local:4318"
+      type: string
+      required: true
+    - variable: bearerToken
+      label: OTLP bearer token
+      description: "Bearer token from an access key with metrics-writer permissions, sent on every OTLP request. Leave empty to keep the token out of the Argo Application: create a Secret named 'otel-otlp-auth' in the target namespace yourself, with key 'authorization' holding the value 'Bearer <token>'."
+      type: password
+    - variable: otlpCaData
+      label: OTLP CA certificate (PEM)
+      description: "Optional PEM-encoded CA certificate used to verify the Write Gateway's TLS certificate. Leave empty to verify against the system CA trust store."
+      type: multiline
+    - variable: otlpInsecureSkipVerify
+      label: Skip OTLP TLS verification
+      description: Disable TLS certificate verification on the connection to the Write Gateway.
+      type: boolean
+      defaultValue: "false"
+    - variable: otelDaemonResources
+      label: OTel Daemon collector resources
+      description: "Kubernetes resources block (YAML) for the per-node collector container. Leave empty to use the chart default."
+      type: multiline
+    - variable: otelDeployResources
+      label: OTel Deploy collector resources
+      description: "Kubernetes resources block (YAML) for the cluster-singleton collector container. Leave empty to use the chart default."
+      type: multiline
+  owner:
+    user: admin
+  template:
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .Values.destinationNamespace }}'
+      project: '{{ .Values.project }}'
+      syncPolicy:
+        automated:
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      sources:
+        # otel-daemon configures the per-node OTel collector.
+        - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+          chart: opentelemetry-collector
+          targetRevision: 0.162.0
+          helm:
+            releaseName: otel-daemon
+            values: |
+              {{- $loft := .Values.loft | default dict }}
+              {{- if and (not $loft.project) (not $loft.cluster) }}
+              {{- fail "cluster-collector: destination must populate loft.project (Virtual Cluster Instance / Space Instance) or loft.cluster (Cluster)" }}
+              {{- end }}
+              mode: daemonset
+              fullnameOverride: otel-daemon
+
+              {{- if .Values.otelDaemonResources }}
+              resources: {{ .Values.otelDaemonResources | nindent 2 }}
+              {{- end }}
+
+              image:
+                repository: otel/opentelemetry-collector-contrib
+
+              tolerations:
+                - operator: Exists
+
+              ports:
+                otlp:
+                  enabled: false
+                otlp-http:
+                  enabled: false
+                jaeger-compact:
+                  enabled: false
+                jaeger-thrift:
+                  enabled: false
+                jaeger-grpc:
+                  enabled: false
+                zipkin:
+                  enabled: false
+
+              presets:
+                hostMetrics:
+                  enabled: true
+
+              # Custom ClusterRole — the chart default plus:
+              #   - nodes/metrics                kubelet authz for /metrics/cadvisor + /metrics
+              #   - /metrics(/cadvisor) URLs     kubelet refuses scrapes without nonResourceURL grant
+              clusterRole:
+                create: true
+                rules:
+                  - apiGroups: [""]
+                    resources: ["nodes", "nodes/metrics"]
+                    verbs: ["get", "watch", "list"]
+                  - nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
+                    verbs: ["get"]
+
+              config:
+                receivers:
+                  # Direct per-node scrape of this daemon's kubelet.
+                  # insecure_skip_verify because in many kubeadm clusters the kubelet's serving cert is
+                  # signed by a separate kubelet-CA with no IP SANs (same posture as kube-prometheus-stack).
+                  prometheus:
+                    config:
+                      scrape_configs:
+                        - job_name: kubelet
+                          scrape_interval: 30s
+                          scheme: https
+                          tls_config:
+                            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                            insecure_skip_verify: true
+                          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                          kubernetes_sd_configs:
+                            - role: node
+                          relabel_configs:
+                            - source_labels: [__meta_kubernetes_node_name]
+                              regex: ${env:OTEL_K8S_NODE_NAME}
+                              action: keep
+                            - target_label: __address__
+                              replacement: ${env:OTEL_K8S_NODE_IP}:10250
+                            - target_label: __metrics_path__
+                              replacement: /metrics
+
+                        - job_name: cadvisor
+                          scrape_interval: 30s
+                          scheme: https
+                          tls_config:
+                            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                            insecure_skip_verify: true
+                          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                          kubernetes_sd_configs:
+                            - role: node
+                          relabel_configs:
+                            - source_labels: [__meta_kubernetes_node_name]
+                              regex: ${env:OTEL_K8S_NODE_NAME}
+                              action: keep
+                            - target_label: __address__
+                              replacement: ${env:OTEL_K8S_NODE_IP}:10250
+                            - target_label: __metrics_path__
+                              replacement: /metrics/cadvisor
+
+                processors:
+                  resource_detection:
+                    detectors: [env, system, k8s_api]
+                    timeout: 2s
+                    override: false
+                    system:
+                      hostname_sources: [os]
+                      resource_attributes:
+                        host.name: {enabled: true}
+                        host.id:   {enabled: true}
+                        os.type:   {enabled: true}
+                    k8s_api:
+                      node_from_env_var: OTEL_K8S_NODE_NAME
+                      resource_attributes:
+                        k8s.node.name: {enabled: true}
+                        k8s.cluster.uid: {enabled: false}
+
+                  resource:
+                    attributes:
+                      - key: host.name
+                        from_attribute: k8s.node.name
+                        action: upsert
+
+                  memory_limiter:
+                    check_interval: 1s
+                    limit_percentage: 75
+                    spike_limit_percentage: 15
+
+                  batch:
+                    send_batch_size: 10000
+                    timeout: 10s
+
+                exporters:
+                  # OTLP/HTTP into the platform-side otel-gateway. Resource attributes
+                  # flow as-is; the gateway forwards to Prometheus where
+                  # promote_resource_attributes lifts them to per-series labels. The
+                  # X-Vcluster-Platform-* headers mirror the resource attrs and match
+                  # the Phase-2 Write Gateway scope contract — no-op against Phase-1.
+                  otlp_http:
+                    endpoint: {{ .Values.otlpEndpoint | quote }}
+                    headers:
+              {{- if $loft.project }}
+                      X-Vcluster-Platform-Project: {{ $loft.project | quote }}
+                      X-Vcluster-Platform-Instance: {{ $loft.name | quote }}
+              {{- else if $loft.cluster }}
+                      X-Vcluster-Platform-Cluster: {{ $loft.cluster | quote }}
+              {{- end }}
+                      # Resolved at runtime from the mounted Secret file (see extraVolumes
+                      # below) via the collector's ${file:} config provider, so the token
+                      # never lands in the rendered ConfigMap. The file holds the full
+                      # "Bearer <token>" header value with no trailing newline (a Secret
+                      # file mount is byte-exact to stringData).
+                      Authorization: "${file:/etc/otel/auth/authorization}"
+              {{- if .Values.otlpInsecureSkipVerify }}
+                    tls:
+                      insecure_skip_verify: true
+              {{- else if .Values.otlpCaData }}
+                    tls:
+                      ca_file: /etc/otel/otlp-ca/ca.crt
+              {{- end }}
+
+                service:
+                  pipelines:
+                    metrics:
+                      receivers: [prometheus]
+                      processors: [memory_limiter, resource_detection, resource, batch]
+                      exporters: [otlp_http]
+                    logs: null
+                    traces: null
+
+              extraVolumes:
+                # Carry the OTLP bearer token as a Secret-backed file rather than inlining it
+                # into the collector ConfigMap. With bearerToken set, the Secret is owned by
+                # this release (named per release so the daemon and deploy collectors don't
+                # fight over one object) and stores the full "Bearer <token>" header value.
+                # With bearerToken empty, both collectors mount the shared 'otel-otlp-auth'
+                # Secret instead, which must be created out-of-band with an 'authorization'
+                # key; the pod cannot start until it exists. The otlp exporter reads it via
+                # ${file:/etc/otel/auth/authorization}.
+                - name: otlp-auth
+                  secret:
+              {{- if .Values.bearerToken }}
+                    secretName: otel-daemon-otlp-auth
+              {{- else }}
+                    secretName: otel-otlp-auth
+              {{- end }}
+              {{- if .Values.otlpCaData }}
+                # CA certificates are public, not secret, so this is a ConfigMap (defined
+                # in extraManifests below) rather than following the bearer-token Secret
+                # pattern above.
+                - name: otlp-ca
+                  configMap:
+                    name: otel-daemon-otlp-ca
+              {{- end }}
+              extraVolumeMounts:
+                - name: otlp-auth
+                  mountPath: /etc/otel/auth
+                  readOnly: true
+              {{- if .Values.otlpCaData }}
+                - name: otlp-ca
+                  mountPath: /etc/otel/otlp-ca
+                  readOnly: true
+              {{- end }}
+              extraManifests:
+              {{- if .Values.bearerToken }}
+                - apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: otel-daemon-otlp-auth
+                    namespace: {{ .Values.destinationNamespace | quote }}
+                  type: Opaque
+                  stringData:
+                    authorization: {{ printf "Bearer %s" .Values.bearerToken | quote }}
+              {{- end }}
+              {{- if .Values.otlpCaData }}
+                - apiVersion: v1
+                  kind: ConfigMap
+                  metadata:
+                    name: otel-daemon-otlp-ca
+                    namespace: {{ .Values.destinationNamespace | quote }}
+                  data:
+                    ca.crt: {{ .Values.otlpCaData | quote }}
+              {{- end }}
+        # otel-deploy configures the cluster-singleton OTel collector.
+        - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+          chart: opentelemetry-collector
+          targetRevision: 0.162.0
+          helm:
+            releaseName: otel-deploy
+            values: |
+              {{- $loft := .Values.loft | default dict }}
+              mode: deployment
+              replicaCount: 1
+              fullnameOverride: otel-deploy
+
+              {{- if .Values.otelDeployResources }}
+              resources: {{ .Values.otelDeployResources | nindent 2 }}
+              {{- end }}
+
+              image:
+                repository: otel/opentelemetry-collector-contrib
+
+              ports:
+                otlp:
+                  enabled: false
+                otlp-http:
+                  enabled: false
+                jaeger-compact:
+                  enabled: false
+                jaeger-thrift:
+                  enabled: false
+                jaeger-grpc:
+                  enabled: false
+                zipkin:
+                  enabled: false
+
+              # All ingress ports disabled — this collector is push-only (OTLP egress).
+              # Without this, the chart renders a Service with empty spec.ports, which
+              # Kubernetes rejects.
+              service:
+                enabled: false
+
+              presets:
+                clusterMetrics:
+                  enabled: true
+
+              # Extend the chart-default ClusterRole. clusterMetrics gives us k8s_cluster
+              # watch permissions. We add:
+              #   - endpointslices           for the prometheus receiver's kubernetes_sd_configs
+              #                              (apiserver via endpointslice)
+              #   - pods                     for the prometheus receiver's kubernetes_sd_configs
+              #                              (fleet-intelligence-agent/nvidia-dcgm-exporter/
+              #                              gpu-health-monitor via role: pod, across namespaces)
+              #   - /metrics nonResourceURL  apiserver refuses /metrics scrapes without it
+              #   - /metrics/etcd            embedded etcd metrics exposed through the tenant API service
+              #   - /metrics/kine            default database backing store metrics if Kine exposes any
+              clusterRole:
+                create: true
+                rules:
+                  - apiGroups: ["discovery.k8s.io"]
+                    resources: ["endpointslices"]
+                    verbs: ["get", "watch", "list"]
+                  - apiGroups: [""]
+                    resources: ["pods"]
+                    verbs: ["get", "watch", "list"]
+                  - nonResourceURLs: ["/metrics", "/metrics/etcd", "/metrics/kine"]
+                    verbs: ["get"]
+
+              extraVolumes:
+                # Carry the OTLP bearer token as a Secret-backed file rather than inlining it
+                # into the collector ConfigMap. With bearerToken set, the Secret (defined in
+                # extraManifests below) is owned by this release (named per release so the
+                # daemon and deploy collectors don't fight over one object) and stores the
+                # full "Bearer <token>" header value. With bearerToken empty, both collectors
+                # mount the shared 'otel-otlp-auth' Secret instead, which must be created
+                # out-of-band with an 'authorization' key; the pod cannot start until it
+                # exists. The otlp exporter reads it via ${file:/etc/otel/auth/authorization}.
+                - name: otlp-auth
+                  secret:
+              {{- if .Values.bearerToken }}
+                    secretName: otel-deploy-otlp-auth
+              {{- else }}
+                    secretName: otel-otlp-auth
+              {{- end }}
+              {{- if .Values.otlpCaData }}
+                # CA certificates are public, not secret, so this is a ConfigMap (defined
+                # in extraManifests below) rather than following the bearer-token Secret
+                # pattern above.
+                - name: otlp-ca
+                  configMap:
+                    name: otel-deploy-otlp-ca
+              {{- end }}
+              extraVolumeMounts:
+                - name: otlp-auth
+                  mountPath: /etc/otel/auth
+                  readOnly: true
+              {{- if .Values.otlpCaData }}
+                - name: otlp-ca
+                  mountPath: /etc/otel/otlp-ca
+                  readOnly: true
+              {{- end }}
+
+              config:
+                receivers:
+                  prometheus:
+                    config:
+                      scrape_configs:
+                        - job_name: kube-apiserver
+                          scheme: https
+                          tls_config:
+                            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                          authorization:
+                            type: Bearer
+                            credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                          kubernetes_sd_configs:
+                            - role: endpointslice
+                          relabel_configs:
+                            - source_labels:
+                                - __meta_kubernetes_namespace
+                                - __meta_kubernetes_service_name
+                                - __meta_kubernetes_endpointslice_port_name
+                              regex: default;kubernetes;https
+                              action: keep
+
+                        # Scrapes embedded etcd metrics through the tenant cluster API service.
+                        # This works for embedded etcd only. Deployed and external etcd are not
+                        # proxied through /metrics/etcd by vCluster.
+                        - job_name: vcluster-etcd
+                          scheme: https
+                          metrics_path: /metrics/etcd
+                          tls_config:
+                            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                          authorization:
+                            type: Bearer
+                            credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                          kubernetes_sd_configs:
+                            - role: endpointslice
+                          relabel_configs:
+                            - source_labels:
+                                - __meta_kubernetes_namespace
+                                - __meta_kubernetes_service_name
+                                - __meta_kubernetes_endpointslice_port_name
+                              regex: default;kubernetes;https
+                              action: keep
+
+                        # Scrapes fleet-intelligence-agent (gpud).
+                        - job_name: fleet-intelligence-agent
+                          kubernetes_sd_configs:
+                            - role: pod
+                              namespaces:
+                                names:
+                                  - fleet-intelligence
+                          relabel_configs:
+                            - source_labels:
+                                - __meta_kubernetes_pod_label_app_kubernetes_io_name
+                              regex: fleet-intelligence-agent
+                              action: keep
+                            - source_labels:
+                                - __meta_kubernetes_pod_container_port_number
+                              regex: "15133"
+                              action: keep
+
+                        # Scrapes the NVIDIA GPU Operator's dcgm-exporter (gpu-operator
+                        # namespace, label app=nvidia-dcgm-exporter) — distinct from the
+                        # "dcgm" job above, which targets a dcgm-exporter co-located in the
+                        # collector's own namespace under a different label/instance name.
+                        - job_name: nvidia-dcgm-exporter
+                          kubernetes_sd_configs:
+                            - role: pod
+                              namespaces:
+                                names:
+                                  - gpu-operator
+                          relabel_configs:
+                            - source_labels:
+                                - __meta_kubernetes_pod_label_app
+                              regex: nvidia-dcgm-exporter
+                              action: keep
+                            - source_labels:
+                                - __meta_kubernetes_pod_container_port_number
+                              regex: "9400"
+                              action: keep
+
+                        # Scrapes NVSentinel components (nvsentinel namespace).
+                        - job_name: gpu-health-monitor
+                          kubernetes_sd_configs:
+                            - role: pod
+                              namespaces:
+                                names:
+                                  - nvsentinel
+                          relabel_configs:
+                            - source_labels:
+                                - __meta_kubernetes_pod_label_app_kubernetes_io_instance
+                              regex: nvsentinel
+                              action: keep
+                            - source_labels:
+                                - __meta_kubernetes_pod_container_port_number
+                              regex: "2112"
+                              action: keep
+
+                processors:
+                  memory_limiter:
+                    check_interval: 1s
+                    limit_percentage: 75
+                    spike_limit_percentage: 15
+
+                  batch:
+                    send_batch_size: 10000
+                    timeout: 10s
+
+                exporters:
+                  otlp_http:
+                    endpoint: {{ .Values.otlpEndpoint | quote }}
+                    headers:
+              {{- if $loft.project }}
+                      X-Vcluster-Platform-Project: {{ $loft.project | quote }}
+                      X-Vcluster-Platform-Instance: {{ $loft.name | quote }}
+              {{- else if $loft.cluster }}
+                      X-Vcluster-Platform-Cluster: {{ $loft.cluster | quote }}
+              {{- end }}
+                      # Resolved at runtime from the mounted Secret file (see extraVolumes
+                      # below) via the collector's ${file:} config provider, so the token
+                      # never lands in the rendered ConfigMap. The file holds the full
+                      # "Bearer <token>" header value with no trailing newline (a Secret
+                      # file mount is byte-exact to stringData).
+                      Authorization: "${file:/etc/otel/auth/authorization}"
+              {{- if .Values.otlpInsecureSkipVerify }}
+                    tls:
+                      insecure_skip_verify: true
+              {{- else if .Values.otlpCaData }}
+                    tls:
+                      ca_file: /etc/otel/otlp-ca/ca.crt
+              {{- end }}
+
+                service:
+                  pipelines:
+                    metrics:
+                      receivers: [prometheus]
+                      processors: [memory_limiter, batch]
+                      exporters: [otlp_http]
+                    logs: null
+                    traces: null
+
+              extraManifests:
+              {{- if .Values.bearerToken }}
+                # Secret holding the OTLP bearer token, mounted as a file (see extraVolumes)
+                # so the token stays out of the collector ConfigMap. stringData is byte-exact,
+                # so the mounted file carries the header value with no trailing newline.
+                - apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: otel-deploy-otlp-auth
+                    namespace: {{ .Values.destinationNamespace | quote }}
+                  type: Opaque
+                  stringData:
+                    authorization: {{ printf "Bearer %s" .Values.bearerToken | quote }}
+              {{- end }}
+              {{- if .Values.otlpCaData }}
+                # ConfigMap holding the CA cert used to verify the Write Gateway's TLS
+                # certificate. See extraVolumes above for the mount.
+                - apiVersion: v1
+                  kind: ConfigMap
+                  metadata:
+                    name: otel-deploy-otlp-ca
+                    namespace: {{ .Values.destinationNamespace | quote }}
+                  data:
+                    ca.crt: {{ .Values.otlpCaData | quote }}
+              {{- end }}
