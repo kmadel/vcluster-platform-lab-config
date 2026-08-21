@@ -23,7 +23,7 @@ spec:
     chart:
       # Pin this to the exact vCluster Platform version under test. tokenSecretRef
       # requires a chart version that contains that feature.
-      version: 4.11.0
+      version: 4.11.2
   nodeProvider:
     name: local-kvm
     targetNamespace: vcluster-platform

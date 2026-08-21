@@ -2,6 +2,8 @@ apiVersion: management.loft.sh/v1
 kind: VirtualClusterTemplate
 metadata:
   name: private-nodes-metal3-static
+  annotations:
+    vcluster.com/template-icon: auto-node.svg
 spec:
   displayName: Private Nodes — Metal3 Static AutoNodes
   description: |
@@ -15,7 +17,7 @@ spec:
     pro: {}
     helmRelease:
       chart:
-        version: 0.36.0
+        version: 0.36.1
       values: |
         privateNodes:
           enabled: true
