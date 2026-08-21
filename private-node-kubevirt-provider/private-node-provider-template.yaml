@@ -4,14 +4,14 @@ kind: VirtualClusterTemplate
 metadata:
   name: private-node-kubevirt-provider
 spec:
-  displayName: Private Node KubeVirt provider control plane
+  displayName: Private Node KubeVirt provider control plane (Static)
   template:
     pro:
       enabled: true
     helmRelease:
       chart:
         name: vcluster
-        version: 0.36.0
+        version: 0.36.1
       values: |-
         privateNodes:
           enabled: true
