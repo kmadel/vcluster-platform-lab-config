@@ -15,12 +15,6 @@ spec:
       user: admin
     templateRef:
       name: private-node-kubevirt-provider
-      # Structured VirtualClusterTemplate parameter values, keyed by each template
-      # parameter's variable name. Marshaled to YAML and passed to the generated
-      # VirtualClusterInstance as spec.parameters. Any parameters the referenced
-      # template defines can be set here. Mutually exclusive with parameters.
-      parameterValues:
-        cpuLimit: 12
   connectedCluster:
     name: kubevirt-provider-cluster
     managementNamespace: vcluster-platform
