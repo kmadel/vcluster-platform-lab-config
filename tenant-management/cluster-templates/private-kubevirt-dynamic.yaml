@@ -22,7 +22,7 @@ spec:
           vpn:
             enabled: true
           autoNodes:
-            - provider: local-kvm
+            - provider: kubevirt-us-va-blacksburg-dc1
               dynamic:
                 - name: vm-dynamic-node-pool-1
                   limits:
