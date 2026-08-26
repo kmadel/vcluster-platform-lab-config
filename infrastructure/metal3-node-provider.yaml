@@ -1,7 +1,7 @@
 apiVersion: management.loft.sh/v1
 kind: NodeProvider
 metadata:
-  name: us-va-blacksburg-dc1
+  name: metal3-us-va-blacksburg-dc1
 spec:
   properties:
     metal3.vcluster.com/dns-servers: 1.1.1.1,8.8.8.8
