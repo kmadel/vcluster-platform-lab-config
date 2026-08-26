@@ -16,7 +16,7 @@ spec:
         privateNodes:
           enabled: true
           autoNodes:
-            - provider: us-va-blacksburg-dc1
+            - provider: metal3-us-va-blacksburg-dc1
               static:
                 - name: node-pool-1
                   quantity: 1
