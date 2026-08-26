@@ -1,0 +1,408 @@
+apiVersion: management.loft.sh/v1
+kind: NodeProvider
+metadata:
+  name: us-va-blacksburg-dc1
+spec:
+  properties:
+    metal3.vcluster.com/dns-servers: 1.1.1.1,8.8.8.8
+    metal3.vcluster.com/network-cidr: 172.22.0.1/24
+    metal3.vcluster.com/network-ip-range: 172.22.0.23-172.22.0.250
+    vcluster.com/network-data-template-config: vmetal-lan-only-postboot
+    vcluster.com/os-image: ubuntu-noble-bootstrap
+    vcluster.com/ssh-keys: admin-bastion-host
+  metal3:
+    clusterRef:
+      cluster: spark-cluster
+      namespace: metal3-system
+    deploy:
+      multus:
+        enabled: true
+        helmValues: |
+          namespace: kube-system
+      dhcp:
+        enabled: true
+        helmValues: |
+          networkAttachmentDefinition:
+            vip: 172.22.0.2/24
+            config: |
+              {
+                "cniVersion": "0.3.1",
+                "type": "bridge",
+                "bridge": "br-provision",
+                "ipam": {}
+              }
+      metal3:
+        enabled: true
+        helmValues: |
+          ironic:
+            image:
+              tag: release-32.0
+            extraEnv:
+              - name: IRONIC_FAST_TRACK
+                value: "false"
+              - name: IRONIC_AUTOMATED_CLEAN
+                value: "true"
+    nodeTypes:
+      - properties:
+          vcluster.com/accelerator: rtx-2000-ada
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: '8'
+          vcluster.com/memory: 24Gi
+          vcluster.com/profile: xlarge-gpu
+          vcluster.com/rack: rack-c
+          vcluster.com/row: row-1
+        resources:
+          cpu: '8'
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+        name: rack-c-xlarge-gpu-pool
+        metadata: {}
+        bareMetalHosts:
+          selector:
+            matchExpressions:
+              - key: demo
+                operator: In
+                values:
+                  - vmetal
+              - key: topology.vcluster.com/az
+                operator: In
+                values:
+                  - us-va-blacksburg-dc1
+              - key: topology.vcluster.com/row
+                operator: In
+                values:
+                  - row-1
+              - key: topology.vcluster.com/rack
+                operator: In
+                values:
+                  - rack-c
+              - key: inventory.vcluster.com/size
+                operator: In
+                values:
+                  - xlarge-gpu
+              - key: inventory.vcluster.com/accelerator
+                operator: In
+                values:
+                  - rtx-2000-ada
+      - properties:
+          vcluster.com/accelerator: cpu-only
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: '2'
+          vcluster.com/memory: 4Gi
+          vcluster.com/profile: small
+          vcluster.com/rack: rack-a
+          vcluster.com/row: row-1
+        resources:
+          cpu: '2'
+          memory: 4Gi
+        name: rack-a-small-pool
+        metadata: {}
+        bareMetalHosts:
+          selector:
+            matchExpressions:
+              - key: demo
+                operator: In
+                values:
+                  - vmetal
+              - key: topology.vcluster.com/az
+                operator: In
+                values:
+                  - us-va-blacksburg-dc1
+              - key: topology.vcluster.com/row
+                operator: In
+                values:
+                  - row-1
+              - key: topology.vcluster.com/rack
+                operator: In
+                values:
+                  - rack-a
+              - key: inventory.vcluster.com/size
+                operator: In
+                values:
+                  - small
+              - key: inventory.vcluster.com/accelerator
+                operator: In
+                values:
+                  - cpu-only
+      - properties:
+          vcluster.com/accelerator: cpu-only
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: '3'
+          vcluster.com/memory: 6Gi
+          vcluster.com/profile: medium
+          vcluster.com/rack: rack-a
+          vcluster.com/row: row-1
+        resources:
+          cpu: '3'
+          memory: 6Gi
+        name: rack-a-medium-pool
+        metadata: {}
+        bareMetalHosts:
+          selector:
+            matchExpressions:
+              - key: demo
+                operator: In
+                values:
+                  - vmetal
+              - key: topology.vcluster.com/az
+                operator: In
+                values:
+                  - us-va-blacksburg-dc1
+              - key: topology.vcluster.com/row
+                operator: In
+                values:
+                  - row-1
+              - key: topology.vcluster.com/rack
+                operator: In
+                values:
+                  - rack-a
+              - key: inventory.vcluster.com/size
+                operator: In
+                values:
+                  - medium
+              - key: inventory.vcluster.com/accelerator
+                operator: In
+                values:
+                  - cpu-only
+      - properties:
+          vcluster.com/accelerator: h100
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: '4'
+          vcluster.com/memory: 8Gi
+          vcluster.com/profile: large
+          vcluster.com/rack: rack-a
+          vcluster.com/row: row-1
+        resources:
+          cpu: '4'
+          memory: 8Gi
+        name: rack-a-large-pool
+        metadata: {}
+        bareMetalHosts:
+          selector:
+            matchExpressions:
+              - key: demo
+                operator: In
+                values:
+                  - vmetal
+              - key: topology.vcluster.com/az
+                operator: In
+                values:
+                  - us-va-blacksburg-dc1
+              - key: topology.vcluster.com/row
+                operator: In
+                values:
+                  - row-1
+              - key: topology.vcluster.com/rack
+                operator: In
+                values:
+                  - rack-a
+              - key: inventory.vcluster.com/size
+                operator: In
+                values:
+                  - large
+              - key: inventory.vcluster.com/accelerator
+                operator: In
+                values:
+                  - h100
+      - properties:
+          vcluster.com/accelerator: cpu-only
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: '8'
+          vcluster.com/memory: 16Gi
+          vcluster.com/profile: xlarge
+          vcluster.com/rack: rack-a
+          vcluster.com/row: row-1
+        resources:
+          cpu: '8'
+          memory: 16Gi
+        name: rack-a-xlarge-pool
+        metadata: {}
+        bareMetalHosts:
+          selector:
+            matchExpressions:
+              - key: demo
+                operator: In
+                values:
+                  - vmetal
+              - key: topology.vcluster.com/az
+                operator: In
+                values:
+                  - us-va-blacksburg-dc1
+              - key: topology.vcluster.com/row
+                operator: In
+                values:
+                  - row-1
+              - key: topology.vcluster.com/rack
+                operator: In
+                values:
+                  - rack-a
+              - key: inventory.vcluster.com/size
+                operator: In
+                values:
+                  - xlarge
+              - key: inventory.vcluster.com/accelerator
+                operator: In
+                values:
+                  - cpu-only
+      - properties:
+          vcluster.com/accelerator: cpu-only
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: '2'
+          vcluster.com/memory: 4Gi
+          vcluster.com/profile: small
+          vcluster.com/rack: rack-b
+          vcluster.com/row: row-1
+        resources:
+          cpu: '2'
+          memory: 4Gi
+        name: rack-b-small-pool
+        metadata: {}
+        bareMetalHosts:
+          selector:
+            matchExpressions:
+              - key: demo
+                operator: In
+                values:
+                  - vmetal
+              - key: topology.vcluster.com/az
+                operator: In
+                values:
+                  - us-va-blacksburg-dc1
+              - key: topology.vcluster.com/row
+                operator: In
+                values:
+                  - row-1
+              - key: topology.vcluster.com/rack
+                operator: In
+                values:
+                  - rack-b
+              - key: inventory.vcluster.com/size
+                operator: In
+                values:
+                  - small
+              - key: inventory.vcluster.com/accelerator
+                operator: In
+                values:
+                  - cpu-only
+      - properties:
+          vcluster.com/accelerator: cpu-only
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: '3'
+          vcluster.com/memory: 6Gi
+          vcluster.com/profile: medium
+          vcluster.com/rack: rack-b
+          vcluster.com/row: row-1
+        resources:
+          cpu: '3'
+          memory: 6Gi
+        name: rack-b-medium-pool
+        metadata: {}
+        bareMetalHosts:
+          selector:
+            matchExpressions:
+              - key: demo
+                operator: In
+                values:
+                  - vmetal
+              - key: topology.vcluster.com/az
+                operator: In
+                values:
+                  - us-va-blacksburg-dc1
+              - key: topology.vcluster.com/row
+                operator: In
+                values:
+                  - row-1
+              - key: topology.vcluster.com/rack
+                operator: In
+                values:
+                  - rack-b
+              - key: inventory.vcluster.com/size
+                operator: In
+                values:
+                  - medium
+              - key: inventory.vcluster.com/accelerator
+                operator: In
+                values:
+                  - cpu-only
+      - properties:
+          vcluster.com/accelerator: h100
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: '4'
+          vcluster.com/memory: 8Gi
+          vcluster.com/profile: large
+          vcluster.com/rack: rack-b
+          vcluster.com/row: row-1
+        resources:
+          cpu: '4'
+          memory: 8Gi
+        name: rack-b-large-pool
+        metadata: {}
+        bareMetalHosts:
+          selector:
+            matchExpressions:
+              - key: demo
+                operator: In
+                values:
+                  - vmetal
+              - key: topology.vcluster.com/az
+                operator: In
+                values:
+                  - us-va-blacksburg-dc1
+              - key: topology.vcluster.com/row
+                operator: In
+                values:
+                  - row-1
+              - key: topology.vcluster.com/rack
+                operator: In
+                values:
+                  - rack-b
+              - key: inventory.vcluster.com/size
+                operator: In
+                values:
+                  - large
+              - key: inventory.vcluster.com/accelerator
+                operator: In
+                values:
+                  - h100
+      - properties:
+          vcluster.com/accelerator: cpu-only
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: '8'
+          vcluster.com/memory: 16Gi
+          vcluster.com/profile: xlarge
+          vcluster.com/rack: rack-b
+          vcluster.com/row: row-1
+        resources:
+          cpu: '8'
+          memory: 16Gi
+        name: rack-b-xlarge-pool
+        metadata: {}
+        bareMetalHosts:
+          selector:
+            matchExpressions:
+              - key: demo
+                operator: In
+                values:
+                  - vmetal
+              - key: topology.vcluster.com/az
+                operator: In
+                values:
+                  - us-va-blacksburg-dc1
+              - key: topology.vcluster.com/row
+                operator: In
+                values:
+                  - row-1
+              - key: topology.vcluster.com/rack
+                operator: In
+                values:
+                  - rack-b
+              - key: inventory.vcluster.com/size
+                operator: In
+                values:
+                  - xlarge
+              - key: inventory.vcluster.com/accelerator
+                operator: In
+                values:
+                  - cpu-only
+  displayName: Metal3 Provider (us-va-blacksburg-dc1)
+
