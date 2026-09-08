@@ -22,6 +22,8 @@ spec:
       dhcp:
         enabled: true
         helmValues: |
+          nodeSelector:
+            demo.vcluster.com/bmh-host: "true"
           networkAttachmentDefinition:
             vip: 172.22.0.2/24
             config: |
@@ -34,6 +36,8 @@ spec:
       metal3:
         enabled: true
         helmValues: |
+          nodeSelector:
+            demo.vcluster.com/bmh-host: "true"
           ironic:
             image:
               tag: release-32.0
