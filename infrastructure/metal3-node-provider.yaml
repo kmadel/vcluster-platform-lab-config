@@ -2,8 +2,6 @@ apiVersion: management.loft.sh/v1
 kind: NodeProvider
 metadata:
   name: metal3-us-va-blacksburg-dc1
-  annotations:
-    vcluster.com/pause-deploy: "true"
 spec:
   properties:
     metal3.vcluster.com/dns-servers: 1.1.1.1,8.8.8.8
