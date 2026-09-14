@@ -37,7 +37,6 @@ spec:
     - variable: hostname
       label: Hostname
       type: string
-      defaultValue: ""
   template:
     metadata:
       labels:
