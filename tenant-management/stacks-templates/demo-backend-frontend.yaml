@@ -67,7 +67,6 @@ spec:
     - variable: hostname
       label: Frontend hostname
       type: string
-      defaultValue: ""
 
   tasks:
     # ---------------------------------------------------------------------
