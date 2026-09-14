@@ -26,6 +26,11 @@ spec:
       type: string
       required: true
   template:
+    instanceTemplate:
+      metadata:
+        annotations:
+          loft.sh/custom-links: >-
+            DemoApp=https://frontend-{{ .Values.loft.virtualClusterName }}.{{ index .Values.loft.clusterAnnotations "demo.vcluster.com/vcluster-tenant-subdomain" }}
     pro:
       enabled: true
     helmRelease:
@@ -37,7 +42,7 @@ spec:
         integrations:
           argoCD:
             enabled: true
-            connector: demo-lab
+            connector: my-argocd-connector
 
         deploy:
           stacks:
@@ -48,10 +53,52 @@ spec:
               parameters:
                 repoURL: "{{ .Values.repoURL }}"
                 targetRevision: main
+                exposeThroughGateway: "true"
+                hostname: 'frontend-{{ .Values.loft.virtualClusterName }}.{{ index .Values.loft.clusterAnnotations "demo.vcluster.com/vcluster-tenant-subdomain" }}'
               defaults:
                 taskTimeout: 10m
               prunePolicy: Prune
-        
+
+        # Gateway API sync. This is what lets the tenant's HTTPRoute be served by
+        # a Gateway that lives in the control plane cluster, without the tenant
+        # running a Gateway or a controller of its own.
+        sync:
+          fromHost:
+            # The mirrored Gateway names a GatewayClass; import the classes too
+            # so the tenant-facing copy resolves.
+            gatewayClasses:
+              enabled: true
+            gateways:
+              enabled: true
+              # control-plane namespace/name : tenant-facing namespace/name.
+              # Keeping both sides identical makes the demo easier to follow;
+              # they do not have to match. A wildcard key must map to a wildcard
+              # target, and the target namespace may not be the vCluster's own
+              # host namespace.
+              mappings:
+                byName:
+                  '{{ index .Values.loft.clusterAnnotations "demo.vcluster.com/vcluster-api-gateway-namespace" }}/{{ index .Values.loft.clusterAnnotations "demo.vcluster.com/vcluster-api-gateway-name" }}': '{{ index .Values.loft.clusterAnnotations "demo.vcluster.com/vcluster-api-gateway-namespace" }}/{{ index .Values.loft.clusterAnnotations "demo.vcluster.com/vcluster-api-gateway-name" }}'
+              allowedRoutes:
+                # Without this the default is Same, and a route in
+                # demo-frontend could not attach to a Gateway mirrored into
+                # gateway-system.
+                defaultVirtualNamespacePolicy:
+                  from: All
+              status:
+                # Surface the Gateway's address inside the tenant, so
+                # `kubectl get gateway -n gateway-system` shows where to point DNS.
+                exposeAddresses: true
+          toHost:
+            # The Gateway routes to the synced Service, so Service sync has to be
+            # on for the backendRef to resolve on the control plane cluster.
+            services:
+              enabled: true
+            gatewayApi:
+              # Only routes travel outward. Tenants do not create Gateways here,
+              # so gateway sync to the control plane cluster stays off.
+              httpRoutes:
+                enabled: true
+
         controlPlane:
           backingStore:
             etcd:
