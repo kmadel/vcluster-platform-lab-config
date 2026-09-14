@@ -13,7 +13,7 @@
 apiVersion: management.loft.sh/v1
 kind: App
 metadata:
-  name: stacks-demo-api-token
+  name: demo-api-token
 spec:
   displayName: Stacks Demo API token
   description: >-
