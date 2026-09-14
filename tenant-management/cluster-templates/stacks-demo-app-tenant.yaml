@@ -25,6 +25,7 @@ spec:
       label: Git repository URL
       type: string
       required: true
+      defaultValue: 'https://github.com/loft-demos/ce-demo-stacks-argocd.git'
   template:
     instanceTemplate:
       metadata:
@@ -42,7 +43,7 @@ spec:
         integrations:
           argoCD:
             enabled: true
-            connector: my-argocd-connector
+            connector: demo-lab
 
         deploy:
           stacks:
