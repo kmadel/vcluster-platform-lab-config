@@ -1,0 +1,48 @@
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: demo-backend
+spec:
+  displayName: Demo backend
+  description: Backend chart, synced by Argo CD into the destination cluster.
+  parameters:
+    - variable: repoURL
+      label: Git repository URL
+      type: string
+      required: true
+    - variable: targetRevision
+      label: Target revision
+      type: string
+      defaultValue: main
+    - variable: namespace
+      label: Target namespace
+      type: string
+      defaultValue: demo-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: demo-app
+    spec:
+      project: default
+      source:
+        repoURL: "{{ .Values.repoURL }}"
+        path: charts/backend
+        targetRevision: "{{ .Values.targetRevision }}"
+        helm:
+          releaseName: backend
+          values: |-
+            service:
+              port: 8080
+      # Only `namespace` is honored here. The Platform overwrites
+      # destination.server and destination.name from the StackInstance's own
+      # destination, so there is nothing to set and nothing to keep in sync.
+      destination:
+        namespace: "{{ .Values.namespace }}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          # Argo CD does not create the target namespace on its own. The app
+          # task path gets this from Helm; here it has to be asked for.
+          - CreateNamespace=true
