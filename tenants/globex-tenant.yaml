@@ -1,0 +1,33 @@
+apiVersion: management.loft.sh/v1
+kind: Tenant
+metadata:
+  name: globex
+  annotations:
+    nico.vcluster.com/org: vcluster-globex
+    nico.vcluster.com/node-provider: nico
+    nico.vcluster.com/ip-block-prefix-length: "27"
+spec:
+  displayName: Globex Corporation
+  controlPlaneClusters:
+    enabled: true
+    allow:
+      byLabels:
+        demo.vcluster.com/shared: "true"
+  osImages:
+    enabled: true
+    allow:
+      byLabels:
+        demo.vcluster.com/shared: "true"
+  sshKeys:
+    enabled: true
+    allow:
+      custom:
+        enabled: true
+  nodeTypes:
+    enabled: true
+    allow:
+      byName:
+        - nico.cpu-small
+    quota:
+      byType:
+        nico.cpu-small: "1"
