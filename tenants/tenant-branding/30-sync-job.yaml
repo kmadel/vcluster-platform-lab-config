@@ -1,0 +1,48 @@
+# PostSync hook: applies branding the moment a sync lands, and fails the sync if
+# a tenant cannot be written. Runs after the ConfigMaps above are applied, so it
+# always reads the revision Argo just synced.
+#
+# BeforeHookCreation keeps the previous Job (and its logs) until the next sync
+# replaces it, which is what you want when a branding change did not take.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tenant-branding-sync
+  namespace: vcluster-platform
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      name: tenant-branding-sync
+    spec:
+      restartPolicy: Never
+      serviceAccountName: tenant-branding
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: reconcile
+          image: python:3.12-alpine
+          command: ["python3", "/opt/reconcile/reconcile.py"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          volumeMounts:
+            - {name: reconciler, mountPath: /opt/reconcile, readOnly: true}
+            - {name: branding, mountPath: /etc/branding, readOnly: true}
+      volumes:
+        - name: reconciler
+          configMap: {name: tenant-branding-reconciler}
+        - name: branding
+          configMap: {name: tenant-branding}

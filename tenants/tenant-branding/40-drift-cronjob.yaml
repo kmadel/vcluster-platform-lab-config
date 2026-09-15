@@ -1,0 +1,53 @@
+# Continuous drift correction.
+#
+# The PostSync hook only fires when Argo actually syncs, so on its own it leaves
+# a window: someone edits branding in the platform UI, git has not changed, and
+# nothing pulls it back. This CronJob closes that window by re-running the same
+# reconciler on a schedule. It is the piece that substitutes for the drift
+# detection Argo cannot do against a subresource it cannot diff.
+#
+# The reconciler compares before it writes, so a converged tenant costs one GET
+# and produces "unchanged" in the log. Only real drift causes a write.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tenant-branding-drift
+  namespace: vcluster-platform
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: tenant-branding
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: reconcile
+              image: python:3.12-alpine
+              command: ["python3", "/opt/reconcile/reconcile.py"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 128Mi}
+              volumeMounts:
+                - {name: reconciler, mountPath: /opt/reconcile, readOnly: true}
+                - {name: branding, mountPath: /etc/branding, readOnly: true}
+          volumes:
+            - name: reconciler
+              configMap: {name: tenant-branding-reconciler}
+            - name: branding
+              configMap: {name: tenant-branding}

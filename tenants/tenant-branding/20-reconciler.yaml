@@ -1,0 +1,135 @@
+# The reconciler. Read-merge-post against the tenants/config subresource, which
+# has only get and create: a write replaces the entire TenantConfig, so posting a
+# bare uiSettings would silently wipe that tenant's hostnames and authentication.
+# This reads the live object, swaps in .spec.uiSettings, and posts the whole thing
+# back — which is also why it never trips the operator-only hostname gate.
+#
+# Stdlib only, talking to the in-cluster kube-apiserver: management.loft.sh is an
+# aggregated APIService (v1.management.loft.sh -> vcluster-platform/loft-apiservice),
+# so the subresource is reachable at the normal in-cluster endpoint with the pod's
+# ServiceAccount token. No platform access key, no CLI, no jq.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-branding-reconciler
+  namespace: vcluster-platform
+data:
+  reconcile.py: |
+    #!/usr/bin/env python3
+    """Reconcile desired tenant branding from a ConfigMap onto the vCluster Platform
+    management.loft.sh tenants/config subresource.
+
+    The subresource has only get and create: a write replaces the whole TenantConfig,
+    so every write here is read-merge-post. Only .spec.uiSettings is touched;
+    .spec.hostnames and .spec.authentication are carried through from the live object
+    untouched, which also keeps this out of the operator-only hostname authority gate.
+
+    Desired state lives in /etc/branding:
+      <tenant>.json  the uiSettings object (required, one file per tenant)
+      <tenant>.svg   optional logo; embedded as a data: URI into .logoURL
+
+    Stdlib only, so the image needs nothing but python.
+    """
+
+    import base64
+    import json
+    import os
+    import ssl
+    import sys
+    import urllib.error
+    import urllib.request
+
+    BRANDING_DIR = os.environ.get("BRANDING_DIR", "/etc/branding")
+    API_HOST = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
+    API_PORT = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
+    SA_DIR = "/var/run/secrets/kubernetes.io/serviceaccount"
+
+    BASE = f"https://{API_HOST}:{API_PORT}"
+
+
+    def config_path(tenant):
+        return f"/apis/management.loft.sh/v1/tenants/{tenant}/config"
+
+
+    def api_client():
+        with open(f"{SA_DIR}/token", encoding="utf-8") as handle:
+            token = handle.read().strip()
+        ctx = ssl.create_default_context(cafile=f"{SA_DIR}/ca.crt")
+        return token, ctx
+
+
+    def request(token, ctx, method, path, body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(BASE + path, data=data, method=method)
+        req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Accept", "application/json")
+        if data is not None:
+            req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
+            return json.loads(resp.read() or b"{}")
+
+
+    def desired_tenants():
+        """Every <tenant>.json in BRANDING_DIR, sorted, with its optional logo."""
+        tenants = []
+        for name in sorted(os.listdir(BRANDING_DIR)):
+            if not name.endswith(".json"):
+                continue
+            tenant = name[: -len(".json")]
+            with open(os.path.join(BRANDING_DIR, name), encoding="utf-8") as handle:
+                ui = json.load(handle)
+            logo = os.path.join(BRANDING_DIR, f"{tenant}.svg")
+            if os.path.exists(logo):
+                with open(logo, "rb") as handle:
+                    encoded = base64.b64encode(handle.read()).decode()
+                ui["logoURL"] = f"data:image/svg+xml;base64,{encoded}"
+            tenants.append((tenant, ui))
+        return tenants
+
+
+    def reconcile(token, ctx, tenant, desired_ui):
+        """Read-merge-post one tenant. Returns 'unchanged' or 'updated'."""
+        current = request(token, ctx, "GET", config_path(tenant))
+        spec = current.setdefault("spec", {})
+        if spec.get("uiSettings") == desired_ui:
+            return "unchanged"
+        spec["uiSettings"] = desired_ui
+        # POST the whole object back, exactly as read: .spec.hostnames and
+        # .spec.authentication ride along unmodified, so the write neither drops them
+        # nor counts as a hostname change.
+        request(token, ctx, "POST", config_path(tenant), current)
+        return "updated"
+
+
+    def main():
+        tenants = desired_tenants()
+        if not tenants:
+            print(f"no <tenant>.json files in {BRANDING_DIR}; nothing to reconcile")
+            return 0
+
+        token, ctx = api_client()
+        failed = []
+        for tenant, desired_ui in tenants:
+            try:
+                print(f"{tenant}: {reconcile(token, ctx, tenant, desired_ui)}")
+            except urllib.error.HTTPError as err:
+                detail = err.read().decode(errors="replace").strip()
+                if err.code == 404:
+                    hint = "no such tenant, or the platform has no tenants/config subresource"
+                elif err.code == 403:
+                    hint = "needs get+create on tenants/config for this tenant"
+                elif err.code == 402:
+                    hint = "tenant isolation is not licensed on this platform"
+                else:
+                    hint = "unexpected status"
+                print(f"{tenant}: FAILED {err.code} ({hint}): {detail}", file=sys.stderr)
+                failed.append(tenant)
+
+        if failed:
+            print(f"failed tenants: {', '.join(failed)}", file=sys.stderr)
+            return 1
+        return 0
+
+
+    if __name__ == "__main__":
+        sys.exit(main())

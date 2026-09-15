@@ -1,0 +1,38 @@
+# Authorizes the reconciler against the platform's own authorizer.
+#
+# vCluster Platform's rbacauth resolves plain rbac.authorization.k8s.io
+# ClusterRoles/ClusterRoleBindings out of the control plane cluster and matches
+# ServiceAccount subjects, so this is ordinary Kubernetes RBAC — no platform
+# access key, no User or Team object.
+#
+# resourceNames scopes the grant per tenant, which the tenants/config subresource
+# supports because the tenant name sits in the request path. Keep this list in
+# step with the keys in the branding ConfigMap.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tenant-branding
+  namespace: vcluster-platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tenant-branding
+rules:
+  - apiGroups: ["management.loft.sh"]
+    resources: ["tenants/config"]
+    resourceNames: ["acme", "globex"]
+    verbs: ["get", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tenant-branding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tenant-branding
+subjects:
+  - kind: ServiceAccount
+    name: tenant-branding
+    namespace: vcluster-platform
