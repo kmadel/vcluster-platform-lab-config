@@ -186,6 +186,7 @@ spec:
         resources:
           cpu: "4"
           memory: 8Gi
+          devices.kubevirt.io/kvm: "1"
         bareMetalHosts:
           selector:
             matchLabels:
@@ -210,6 +211,7 @@ spec:
         resources:
           cpu: "8"
           memory: 16Gi
+          devices.kubevirt.io/kvm: "1"
         bareMetalHosts:
           selector:
             matchLabels:
@@ -286,6 +288,7 @@ spec:
         resources:
           cpu: "4"
           memory: 8Gi
+          devices.kubevirt.io/kvm: "1"
         bareMetalHosts:
           selector:
             matchLabels:
@@ -310,6 +313,7 @@ spec:
         resources:
           cpu: "8"
           memory: 16Gi
+          devices.kubevirt.io/kvm: "1"
         bareMetalHosts:
           selector:
             matchLabels:
