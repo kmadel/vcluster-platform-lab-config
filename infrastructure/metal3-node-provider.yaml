@@ -186,6 +186,7 @@ spec:
         resources:
           cpu: "4"
           memory: 8Gi
+          ephemeral-storage: 20Gi
           devices.kubevirt.io/kvm: "1"
           devices.kubevirt.io/tun: "1"
           devices.kubevirt.io/vhost-net: "1"
@@ -213,6 +214,7 @@ spec:
         resources:
           cpu: "8"
           memory: 16Gi
+          ephemeral-storage: 40Gi
           devices.kubevirt.io/kvm: "1"
           devices.kubevirt.io/tun: "1"
           devices.kubevirt.io/vhost-net: "1"
@@ -292,6 +294,7 @@ spec:
         resources:
           cpu: "4"
           memory: 8Gi
+          ephemeral-storage: 20Gi
           devices.kubevirt.io/kvm: "1"
           devices.kubevirt.io/tun: "1"
           devices.kubevirt.io/vhost-net: "1"
@@ -319,6 +322,7 @@ spec:
         resources:
           cpu: "8"
           memory: 16Gi
+          ephemeral-storage: 40Gi
           devices.kubevirt.io/kvm: "1"
           devices.kubevirt.io/tun: "1"
           devices.kubevirt.io/vhost-net: "1"
