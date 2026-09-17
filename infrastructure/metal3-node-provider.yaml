@@ -22,6 +22,8 @@ spec:
       dhcp:
         enabled: true
         helmValues: |
+          proxy:
+            ironicApiUrl: http://ironic.metal3-system.svc.cluster.local:6385
           nodeSelector:
             demo.vcluster.com/bmh-host: "true"
           networkAttachmentDefinition:
