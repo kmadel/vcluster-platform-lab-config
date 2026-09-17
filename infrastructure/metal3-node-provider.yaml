@@ -43,6 +43,7 @@ spec:
           nodeSelector:
             demo.vcluster.com/bmh-host: "true"
           ironic:
+            replicas: 1
             image:
               tag: release-32.0
             extraEnv:
@@ -50,367 +51,282 @@ spec:
                 value: "false"
               - name: IRONIC_AUTOMATED_CLEAN
                 value: "true"
+          ipaImages:
+            replicas: 1
+
+    # ------------------------------------------------------------------------
+    # NetBox becomes the inventory. The platform only ever READS NetBox.
+    # ------------------------------------------------------------------------
+    netBox:
+      secretRef:
+        namespace: vcluster-platform
+        name: netbox-lab
+      tag: vcluster-sync
+      # sushy-tools keys each emulated server by its libvirt domain UUID, which
+      # hack/seed-netbox.py writes into the NetBox device serial. The platform
+      # default ends in /Systems/1 and would dial one non-existent system for
+      # every host.
+      addressTemplate: "redfish+http://{{ .Address }}:8000/redfish/v1/Systems/{{ .Serial }}"
+      customFields:
+        bmcUsername: bmc_username
+        bmcPassword: bmc_password
+      bareMetalHostTemplate:
+        metadata:
+          labels:
+            # The one dimension NetBox has no field for. Every other selector
+            # label below is derived from the device record by the import.
+            demo: vmetal
+        spec:
+          automatedCleaningMode: metadata
+          rootDeviceHints:
+            deviceName: /dev/vda
+          bmc:
+            disableCertificateVerification: true
+          # Deliberately NOT online: true. The import creates hosts with
+          # online: false, which is what the claim path needs.
+
+    # ------------------------------------------------------------------------
+    # Pools. Label mapping from the hand-rolled lane:
+    #   topology.vcluster.com/az           -> netbox.vcluster.com/site
+    #   topology.vcluster.com/row          -> netbox.vcluster.com/location
+    #   topology.vcluster.com/rack         -> netbox.vcluster.com/rack
+    #   inventory.vcluster.com/size        -> netbox.vcluster.com/device-type
+    #   inventory.vcluster.com/accelerator -> netbox.vcluster.com/role
+    #
+    # Never select on netbox.vcluster.com/availability or /provisionable: both
+    # change as machines are claimed, and a pool would empty out under load.
+    #
+    # Machines per pool, against the 10-device inventory seeded 2026-09-17:
+    #   rack-a-small 2 | rack-a-medium 1 | rack-a-large 1 | rack-a-xlarge 1
+    #   rack-b-small 2 | rack-b-medium 0 | rack-b-large 1 | rack-b-xlarge 1
+    #   rack-c-xlarge-gpu 1
+    # ------------------------------------------------------------------------
     nodeTypes:
+      # ---- rack-c -----------------------------------------------------------
+      # The only pool that may select gpu-compute, and its capacity is exactly
+      # one machine (the single RTX 2000 Ada passed through to that domain).
+      # Size any NodeType consuming it for one machine; a second replica will
+      # never schedule. No device-type key, so it keeps working whether the
+      # inventory calls that profile `xlarge` or `xlarge-gpu`.
       - name: rack-c-xlarge-gpu-pool
+        metadata: {}
+        resources:
+          cpu: "8"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+        bareMetalHosts:
+          selector:
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-c
+              netbox.vcluster.com/role: gpu-compute
         properties:
           vcluster.com/accelerator: rtx-2000-ada
           vcluster.com/az: us-va-blacksburg-dc1
-          vcluster.com/cpu: '8'
+          vcluster.com/cpu: "8"
           vcluster.com/memory: 24Gi
           vcluster.com/profile: xlarge-gpu
           vcluster.com/rack: rack-c
           vcluster.com/row: row-1
-        resources:
-          cpu: '8'
-          memory: 24Gi
-          nvidia.com/gpu: "1"
+
+      # ---- rack-a -----------------------------------------------------------
+      - name: rack-a-small-pool
         metadata: {}
+        resources:
+          cpu: "2"
+          memory: 4Gi
         bareMetalHosts:
           selector:
-            matchExpressions:
-              - key: demo
-                operator: In
-                values:
-                  - vmetal
-              - key: topology.vcluster.com/az
-                operator: In
-                values:
-                  - us-va-blacksburg-dc1
-              - key: topology.vcluster.com/row
-                operator: In
-                values:
-                  - row-1
-              - key: topology.vcluster.com/rack
-                operator: In
-                values:
-                  - rack-c
-              - key: inventory.vcluster.com/size
-                operator: In
-                values:
-                  - xlarge-gpu
-              - key: inventory.vcluster.com/accelerator
-                operator: In
-                values:
-                  - rtx-2000-ada
-      - properties:
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-a
+              netbox.vcluster.com/device-type: vmetal-small
+              netbox.vcluster.com/role: cpu-compute
+        properties:
           vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
-          vcluster.com/cpu: '2'
+          vcluster.com/cpu: "2"
           vcluster.com/memory: 4Gi
           vcluster.com/profile: small
           vcluster.com/rack: rack-a
           vcluster.com/row: row-1
-        resources:
-          cpu: '2'
-          memory: 4Gi
-        name: rack-a-small-pool
+
+      - name: rack-a-medium-pool
         metadata: {}
+        resources:
+          cpu: "3"
+          memory: 6Gi
         bareMetalHosts:
           selector:
-            matchExpressions:
-              - key: demo
-                operator: In
-                values:
-                  - vmetal
-              - key: topology.vcluster.com/az
-                operator: In
-                values:
-                  - us-va-blacksburg-dc1
-              - key: topology.vcluster.com/row
-                operator: In
-                values:
-                  - row-1
-              - key: topology.vcluster.com/rack
-                operator: In
-                values:
-                  - rack-a
-              - key: inventory.vcluster.com/size
-                operator: In
-                values:
-                  - small
-              - key: inventory.vcluster.com/accelerator
-                operator: In
-                values:
-                  - cpu-only
-      - properties:
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-a
+              netbox.vcluster.com/device-type: vmetal-medium
+              netbox.vcluster.com/role: cpu-compute
+        properties:
           vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
-          vcluster.com/cpu: '3'
+          vcluster.com/cpu: "3"
           vcluster.com/memory: 6Gi
           vcluster.com/profile: medium
           vcluster.com/rack: rack-a
           vcluster.com/row: row-1
-        resources:
-          cpu: '3'
-          memory: 6Gi
-        name: rack-a-medium-pool
+
+      - name: rack-a-large-pool
         metadata: {}
+        resources:
+          cpu: "4"
+          memory: 8Gi
         bareMetalHosts:
           selector:
-            matchExpressions:
-              - key: demo
-                operator: In
-                values:
-                  - vmetal
-              - key: topology.vcluster.com/az
-                operator: In
-                values:
-                  - us-va-blacksburg-dc1
-              - key: topology.vcluster.com/row
-                operator: In
-                values:
-                  - row-1
-              - key: topology.vcluster.com/rack
-                operator: In
-                values:
-                  - rack-a
-              - key: inventory.vcluster.com/size
-                operator: In
-                values:
-                  - medium
-              - key: inventory.vcluster.com/accelerator
-                operator: In
-                values:
-                  - cpu-only
-      - properties:
-          vcluster.com/accelerator: h100
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-a
+              netbox.vcluster.com/device-type: vmetal-large
+              netbox.vcluster.com/role: cpu-compute
+        properties:
+          vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
-          vcluster.com/cpu: '4'
+          vcluster.com/cpu: "4"
           vcluster.com/memory: 8Gi
           vcluster.com/profile: large
           vcluster.com/rack: rack-a
           vcluster.com/row: row-1
-        resources:
-          cpu: '4'
-          memory: 8Gi
-        name: rack-a-large-pool
+
+      - name: rack-a-xlarge-pool
         metadata: {}
+        resources:
+          cpu: "8"
+          memory: 16Gi
         bareMetalHosts:
           selector:
-            matchExpressions:
-              - key: demo
-                operator: In
-                values:
-                  - vmetal
-              - key: topology.vcluster.com/az
-                operator: In
-                values:
-                  - us-va-blacksburg-dc1
-              - key: topology.vcluster.com/row
-                operator: In
-                values:
-                  - row-1
-              - key: topology.vcluster.com/rack
-                operator: In
-                values:
-                  - rack-a
-              - key: inventory.vcluster.com/size
-                operator: In
-                values:
-                  - large
-              - key: inventory.vcluster.com/accelerator
-                operator: In
-                values:
-                  - h100
-      - properties:
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-a
+              netbox.vcluster.com/device-type: vmetal-xlarge
+              netbox.vcluster.com/role: cpu-compute
+        properties:
           vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
-          vcluster.com/cpu: '8'
+          vcluster.com/cpu: "8"
           vcluster.com/memory: 16Gi
           vcluster.com/profile: xlarge
           vcluster.com/rack: rack-a
           vcluster.com/row: row-1
-        resources:
-          cpu: '8'
-          memory: 16Gi
-        name: rack-a-xlarge-pool
+
+      # ---- rack-b -----------------------------------------------------------
+      - name: rack-b-small-pool
         metadata: {}
+        resources:
+          cpu: "2"
+          memory: 4Gi
         bareMetalHosts:
           selector:
-            matchExpressions:
-              - key: demo
-                operator: In
-                values:
-                  - vmetal
-              - key: topology.vcluster.com/az
-                operator: In
-                values:
-                  - us-va-blacksburg-dc1
-              - key: topology.vcluster.com/row
-                operator: In
-                values:
-                  - row-1
-              - key: topology.vcluster.com/rack
-                operator: In
-                values:
-                  - rack-a
-              - key: inventory.vcluster.com/size
-                operator: In
-                values:
-                  - xlarge
-              - key: inventory.vcluster.com/accelerator
-                operator: In
-                values:
-                  - cpu-only
-      - properties:
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-b
+              netbox.vcluster.com/device-type: vmetal-small
+              netbox.vcluster.com/role: cpu-compute
+        properties:
           vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
-          vcluster.com/cpu: '2'
+          vcluster.com/cpu: "2"
           vcluster.com/memory: 4Gi
           vcluster.com/profile: small
           vcluster.com/rack: rack-b
           vcluster.com/row: row-1
-        resources:
-          cpu: '2'
-          memory: 4Gi
-        name: rack-b-small-pool
+
+      # NOTE: zero machines. rack-b in the current inventory is small, small,
+      # large, xlarge. Kept so the pool list stays symmetric with rack-a; drop
+      # it if an always-empty pool in the UI is worse than the asymmetry.
+      - name: rack-b-medium-pool
         metadata: {}
+        resources:
+          cpu: "3"
+          memory: 6Gi
         bareMetalHosts:
           selector:
-            matchExpressions:
-              - key: demo
-                operator: In
-                values:
-                  - vmetal
-              - key: topology.vcluster.com/az
-                operator: In
-                values:
-                  - us-va-blacksburg-dc1
-              - key: topology.vcluster.com/row
-                operator: In
-                values:
-                  - row-1
-              - key: topology.vcluster.com/rack
-                operator: In
-                values:
-                  - rack-b
-              - key: inventory.vcluster.com/size
-                operator: In
-                values:
-                  - small
-              - key: inventory.vcluster.com/accelerator
-                operator: In
-                values:
-                  - cpu-only
-      - properties:
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-b
+              netbox.vcluster.com/device-type: vmetal-medium
+              netbox.vcluster.com/role: cpu-compute
+        properties:
           vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
-          vcluster.com/cpu: '3'
+          vcluster.com/cpu: "3"
           vcluster.com/memory: 6Gi
           vcluster.com/profile: medium
           vcluster.com/rack: rack-b
           vcluster.com/row: row-1
-        resources:
-          cpu: '3'
-          memory: 6Gi
-        name: rack-b-medium-pool
+
+      - name: rack-b-large-pool
         metadata: {}
+        resources:
+          cpu: "4"
+          memory: 8Gi
         bareMetalHosts:
           selector:
-            matchExpressions:
-              - key: demo
-                operator: In
-                values:
-                  - vmetal
-              - key: topology.vcluster.com/az
-                operator: In
-                values:
-                  - us-va-blacksburg-dc1
-              - key: topology.vcluster.com/row
-                operator: In
-                values:
-                  - row-1
-              - key: topology.vcluster.com/rack
-                operator: In
-                values:
-                  - rack-b
-              - key: inventory.vcluster.com/size
-                operator: In
-                values:
-                  - medium
-              - key: inventory.vcluster.com/accelerator
-                operator: In
-                values:
-                  - cpu-only
-      - properties:
-          vcluster.com/accelerator: h100
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-b
+              netbox.vcluster.com/device-type: vmetal-large
+              netbox.vcluster.com/role: cpu-compute
+        properties:
+          vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
-          vcluster.com/cpu: '4'
+          vcluster.com/cpu: "4"
           vcluster.com/memory: 8Gi
           vcluster.com/profile: large
           vcluster.com/rack: rack-b
           vcluster.com/row: row-1
-        resources:
-          cpu: '4'
-          memory: 8Gi
-        name: rack-b-large-pool
+
+      - name: rack-b-xlarge-pool
         metadata: {}
+        resources:
+          cpu: "8"
+          memory: 16Gi
         bareMetalHosts:
           selector:
-            matchExpressions:
-              - key: demo
-                operator: In
-                values:
-                  - vmetal
-              - key: topology.vcluster.com/az
-                operator: In
-                values:
-                  - us-va-blacksburg-dc1
-              - key: topology.vcluster.com/row
-                operator: In
-                values:
-                  - row-1
-              - key: topology.vcluster.com/rack
-                operator: In
-                values:
-                  - rack-b
-              - key: inventory.vcluster.com/size
-                operator: In
-                values:
-                  - large
-              - key: inventory.vcluster.com/accelerator
-                operator: In
-                values:
-                  - h100
-      - properties:
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-b
+              netbox.vcluster.com/device-type: vmetal-xlarge
+              netbox.vcluster.com/role: cpu-compute
+        properties:
           vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
-          vcluster.com/cpu: '8'
+          vcluster.com/cpu: "8"
           vcluster.com/memory: 16Gi
           vcluster.com/profile: xlarge
           vcluster.com/rack: rack-b
           vcluster.com/row: row-1
-        resources:
-          cpu: '8'
-          memory: 16Gi
-        name: rack-b-xlarge-pool
-        metadata: {}
-        bareMetalHosts:
-          selector:
-            matchExpressions:
-              - key: demo
-                operator: In
-                values:
-                  - vmetal
-              - key: topology.vcluster.com/az
-                operator: In
-                values:
-                  - us-va-blacksburg-dc1
-              - key: topology.vcluster.com/row
-                operator: In
-                values:
-                  - row-1
-              - key: topology.vcluster.com/rack
-                operator: In
-                values:
-                  - rack-b
-              - key: inventory.vcluster.com/size
-                operator: In
-                values:
-                  - xlarge
-              - key: inventory.vcluster.com/accelerator
-                operator: In
-                values:
-                  - cpu-only
   displayName: Metal3 Provider (us-va-blacksburg-dc1)
 
