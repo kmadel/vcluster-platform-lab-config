@@ -15,7 +15,7 @@ spec:
       user: admin
     templateRef:
       name: private-node-kubevirt-provider-dynamic
-    parameters:
+    parameters: |-
       cpuLimit: '8'
   connectedCluster:
     name: kubevirt-provider-cluster
