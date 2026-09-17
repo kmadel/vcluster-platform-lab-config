@@ -19,11 +19,12 @@ spec:
         enabled: true
         helmValues: |
           namespace: kube-system
+          nodeSelector:
+            demo.vcluster.com/bmh-host: "true"
       dhcp:
         enabled: true
+        version: "0.17.0"
         helmValues: |
-          proxy:
-            ironicApiUrl: http://ironic.metal3-system.svc.cluster.local:6385
           nodeSelector:
             demo.vcluster.com/bmh-host: "true"
           networkAttachmentDefinition:
@@ -37,6 +38,7 @@ spec:
               }
       metal3:
         enabled: true
+        version: "0.6.1"
         helmValues: |
           nodeSelector:
             demo.vcluster.com/bmh-host: "true"
