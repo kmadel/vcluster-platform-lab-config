@@ -18,7 +18,7 @@ spec:
         privateNodes:
           enabled: true
           autoNodes:
-            - provider: us-va-blacksburg-dc1
+            - provider: metal3-us-va-blacksburg-dc1
               dynamic:
                 - name: node-pool-1
                   limits:
@@ -55,7 +55,8 @@ spec:
         - '4'
         - '8'
         - '12'
-      defaultValue: '4'
+        - '16'
+      defaultValue: '8'
   access:
     - verbs: [get]
       users: ["*"]
