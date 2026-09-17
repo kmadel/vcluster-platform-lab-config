@@ -51,7 +51,8 @@ spec:
               - name: IRONIC_AUTOMATED_CLEAN
                 value: "true"
     nodeTypes:
-      - properties:
+      - name: rack-c-xlarge-gpu-pool
+        properties:
           vcluster.com/accelerator: rtx-2000-ada
           vcluster.com/az: us-va-blacksburg-dc1
           vcluster.com/cpu: '8'
@@ -63,7 +64,6 @@ spec:
           cpu: '8'
           memory: 24Gi
           nvidia.com/gpu: "1"
-        name: rack-c-xlarge-gpu-pool
         metadata: {}
         bareMetalHosts:
           selector:
