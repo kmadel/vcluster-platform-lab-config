@@ -17,7 +17,7 @@ spec:
     pro: {}
     helmRelease:
       chart:
-        version: 0.36.1
+        version: 0.37.1
       values: |
         privateNodes:
           enabled: true

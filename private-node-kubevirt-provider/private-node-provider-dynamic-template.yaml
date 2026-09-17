@@ -23,6 +23,9 @@ spec:
                 - name: node-pool-1
                   limits:
                     cpu: '{{ .Values.cpuLimit }}'
+                  nodeLabels:
+                    kubevirt.io/schedulable: "true"
+                    machine-type.node.kubevirt.io/q35: "true"
                   nodeTypeSelector:
                     - property: vcluster.com/profile
                       operator: In
