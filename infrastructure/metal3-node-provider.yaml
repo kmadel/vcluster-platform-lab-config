@@ -187,6 +187,8 @@ spec:
           cpu: "4"
           memory: 8Gi
           devices.kubevirt.io/kvm: "1"
+          devices.kubevirt.io/tun: "1"
+          devices.kubevirt.io/vhost-net: "1"
         bareMetalHosts:
           selector:
             matchLabels:
@@ -212,6 +214,8 @@ spec:
           cpu: "8"
           memory: 16Gi
           devices.kubevirt.io/kvm: "1"
+          devices.kubevirt.io/tun: "1"
+          devices.kubevirt.io/vhost-net: "1"
         bareMetalHosts:
           selector:
             matchLabels:
@@ -289,6 +293,8 @@ spec:
           cpu: "4"
           memory: 8Gi
           devices.kubevirt.io/kvm: "1"
+          devices.kubevirt.io/tun: "1"
+          devices.kubevirt.io/vhost-net: "1"
         bareMetalHosts:
           selector:
             matchLabels:
@@ -314,6 +320,8 @@ spec:
           cpu: "8"
           memory: 16Gi
           devices.kubevirt.io/kvm: "1"
+          devices.kubevirt.io/tun: "1"
+          devices.kubevirt.io/vhost-net: "1"
         bareMetalHosts:
           selector:
             matchLabels:
