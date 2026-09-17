@@ -201,6 +201,7 @@ spec:
               netbox.vcluster.com/device-type: vmetal-large
               netbox.vcluster.com/role: cpu-compute
         properties:
+          kubernetes.io/arch: amd64
           vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
           vcluster.com/cpu: "4"
@@ -229,6 +230,7 @@ spec:
               netbox.vcluster.com/device-type: vmetal-xlarge
               netbox.vcluster.com/role: cpu-compute
         properties:
+          kubernetes.io/arch: amd64
           vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
           vcluster.com/cpu: "8"
@@ -309,6 +311,7 @@ spec:
               netbox.vcluster.com/device-type: vmetal-large
               netbox.vcluster.com/role: cpu-compute
         properties:
+          kubernetes.io/arch: amd64
           vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
           vcluster.com/cpu: "4"
@@ -337,6 +340,7 @@ spec:
               netbox.vcluster.com/device-type: vmetal-xlarge
               netbox.vcluster.com/role: cpu-compute
         properties:
+          kubernetes.io/arch: amd64
           vcluster.com/accelerator: cpu-only
           vcluster.com/az: us-va-blacksburg-dc1
           vcluster.com/cpu: "8"
