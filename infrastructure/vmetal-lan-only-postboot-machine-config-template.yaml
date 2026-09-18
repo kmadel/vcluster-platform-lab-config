@@ -1,0 +1,74 @@
+# ############################################################################
+# PROPOSED CHANGE to the live MachineConfigTemplate `vmetal-lan-only-postboot`.
+# Applied on the kpi Platform cluster. Diff against wherever you keep the
+# original; this repo is not its home.
+#
+# WHAT CHANGED
+# The LAN NIC's MAC is now derived from the BareMetalHost's own inspection
+# status instead of read from a `lan.vcluster.com/mac` annotation:
+#
+#   before: {{ index .Values.BareMetalHost "metadata" "annotations" "lan.vcluster.com/mac" }}
+#   after:  first nic in .Values.BareMetalHost.status.hardware.nics with pxe != true
+#
+# WHY
+# The NetBox import does not write `lan.vcluster.com/mac` and cannot: the only
+# place to set annotations on imported hosts is
+# `spec.metal3.netBox.bareMetalHostTemplate.metadata`, which applies ONE value
+# to every host. Worse, untag/re-tag in NetBox destroys and recreates the
+# BareMetalHost, so any hand-applied annotation is lost (confirmed 2026-09-18 on
+# rack-b-u16-large). Inspection status has no such problem: it is regenerated
+# every time the host is inspected, by the host itself.
+#
+# NOTE ON SCOPE
+# "first non-PXE NIC" is unambiguous for these two-NIC machines. On hardware
+# with several non-boot interfaces it is not, and the right answer there is
+# NetBox interface roles projected onto the host, which the import does not do
+# today.
+#
+# KEPT DELIBERATELY: net0 stays `ipv4_dhcp`. Do NOT switch it to a static
+# address using .Values.AllocatedIP: that is the PROVISIONING address from
+# network-ip-range (172.22.0.23-250), and assigning it to the LAN NIC would put
+# a provisioning-network address on the LAN, which is the opposite of what
+# "lan-only-postboot" means.
+#
+# VERIFY after applying, by claiming a host and reading what it rendered:
+#   kubectl -n metal3-system get secret vcluster-networkdata-<host> \
+#     -o jsonpath='{.data.networkData}' | base64 -d
+# An empty ethernet_mac_address means the derivation found nothing and the node
+# will boot with no LAN link, the same silent failure as the missing annotation.
+# ############################################################################
+apiVersion: management.loft.sh/v1
+kind: MachineConfigTemplate
+metadata:
+  name: vmetal-lan-only-postboot
+spec:
+  displayName: vMetal LAN Only Postboot
+  networkDataTemplate: |-
+    {{- $lanMAC := "" -}}
+    {{- range $nic := .Values.BareMetalHost.status.hardware.nics -}}
+    {{-   if and (not $nic.pxe) (eq $lanMAC "") -}}
+    {{-     $lanMAC = $nic.mac -}}
+    {{-   end -}}
+    {{- end -}}
+    {
+      "links": [
+        {
+          "id": "nic0",
+          "type": "phy",
+          "ethernet_mac_address": "{{ $lanMAC }}"
+        }
+      ],
+      "networks": [
+        {
+          "id": "net0",
+          "type": "ipv4_dhcp",
+          "link": "nic0"
+        }
+      ],
+      "services": [
+        {
+          "type": "dns",
+          "address": "192.168.48.1"
+        }
+      ]
+    }
