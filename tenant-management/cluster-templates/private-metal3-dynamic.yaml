@@ -24,7 +24,7 @@ spec:
           vpn:
             enabled: true
           autoNodes:
-            - provider: us-va-blacksburg-dc1
+            - provider: metal3-us-va-blacksburg-dc1
               dynamic:
                 - name: bm-dynamic-node-pool-1
                   limits:

@@ -17,14 +17,14 @@ spec:
     pro: {}
     helmRelease:
       chart:
-        version: 0.36.1
+        version: 0.37.1
       values: |
         privateNodes:
           enabled: true
           vpn:
             enabled: true
           autoNodes:
-            - provider: us-va-blacksburg-dc1
+            - provider: metal3-us-va-blacksburg-dc1
               static:
                 {{ if ne .Values.smallNodeCount "0" }}
                 - name: static-small-nodes
