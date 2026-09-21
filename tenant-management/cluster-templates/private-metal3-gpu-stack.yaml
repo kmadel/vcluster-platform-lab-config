@@ -70,9 +70,9 @@ spec:
               enabled: true
           stacks:
             - name: gpu
-              displayName: Thinking Machines GPU Stack
+              displayName: NVIDIA GPU Stack
               templateRef:
-                name: thinking-machines-gpu
+                name: nvidia-gpu-stack
               parameters:
                 argoProject: {{ .Values.argoProject | quote }}
                 driverPreinstalled: {{ .Values.driverPreinstalled | toString | quote }}
