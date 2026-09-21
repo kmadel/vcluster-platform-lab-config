@@ -27,6 +27,13 @@ spec:
       defaultValue: default
   # Tasks and parameters belong directly under spec, not spec.template.
   tasks:
+    - name: cert-manager
+      timeout: 10m0s
+      argoCDApplication:
+        templateRef:
+          name: cert-manager
+        parameters:
+          project: "{{ .Values.argoProject }}"
     - name: gpu-operator
       timeout: 45m0s
       argoCDApplication:
