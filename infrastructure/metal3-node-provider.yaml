@@ -43,14 +43,14 @@ spec:
           nodeSelector:
             demo.vcluster.com/bmh-host: "true"
           ironic:
-            replicas: 1
+            replicas: 2
             image:
               tag: release-32.0
             extraEnv:
               - name: IRONIC_FAST_TRACK
-                value: "false"
-              - name: IRONIC_AUTOMATED_CLEAN
                 value: "true"
+              - name: IRONIC_AUTOMATED_CLEAN
+                value: "false"
           ipaImages:
             replicas: 1
 
