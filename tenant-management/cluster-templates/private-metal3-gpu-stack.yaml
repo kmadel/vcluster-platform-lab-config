@@ -2,6 +2,8 @@ apiVersion: management.loft.sh/v1
 kind: VirtualClusterTemplate
 metadata:
   name: private-nodes-metal3-static-gpu-stack
+  annotations:
+    vcluster.com/template-icon: gpu.svg
 spec:
   displayName: Private Nodes — Metal3 Static with NVIDIA GPU Stack
   description: Fixed-size Metal3 GPU pool with NVIDIA GPU Operator and NVSentinel delivered by a Stack.
