@@ -1,0 +1,66 @@
+apiVersion: management.loft.sh/v1
+kind: StackTemplate
+metadata:
+  name: nvidia-gpu-stack
+spec:
+  displayName: NVIDIA GPU Stack
+  description: NVIDIA GPU Operator followed by NVSentinel on tenant private nodes.
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: gpuOperatorVersion
+      label: GPU Operator Version
+      type: string
+      defaultValue: v26.3.3
+    - variable: nvsentinelVersion
+      label: NVSentinel Chart and Image Version
+      type: string
+      defaultValue: v1.13.0
+    - variable: driverPreinstalled
+      label: NVIDIA Driver Preinstalled
+      description: Enable when the node OS image already contains the NVIDIA driver.
+      type: boolean
+      defaultValue: "false"
+    - variable: argoProject
+      label: Argo CD Project
+      type: string
+      defaultValue: default
+  # Tasks and parameters belong directly under spec, not spec.template.
+  tasks:
+    - name: gpu-operator
+      timeout: 45m
+      argoCDApplication:
+        templateRef:
+          name: nvidia-gpu-operator
+        parameters:
+          version: "{{ .Values.gpuOperatorVersion }}"
+          project: "{{ .Values.argoProject }}"
+          destinationNamespace: gpu-operator
+          driverEnabled: '{{ if eq (.Values.driverPreinstalled | toString) "true" }}false{{ else }}true{{ end }}'
+          dcgmEnabled: "true"
+          dcgmExporterServiceMonitorEnabled: "false"
+    - name: nvsentinel
+      dependsOn:
+        - gpu-operator
+      timeout: 20m
+      argoCDApplication:
+        templateRef:
+          name: nvsentinel
+        parameters:
+          version: "{{ .Values.nvsentinelVersion }}"
+          imageTag: "{{ .Values.nvsentinelVersion }}"
+          project: "{{ .Values.argoProject }}"
+          destinationNamespace: nvsentinel
+          dcgmEndpoint: nvidia-dcgm.gpu-operator.svc
+          dcgmPort: "5555"
+          assumeDriverInstalled: "{{ .Values.driverPreinstalled }}"
+          enableGpuHealthMonitor: "true"
+          enableSyslogHealthMonitor: "true"
+          dryRun: "true"
+          enableFaultQuarantine: "false"
+          enableNodeDrainer: "false"
+          enableFaultRemediation: "false"
+          enableJanitor: "false"
+          enableMongodbStore: "false"
+          enableHealthEventsAnalyzer: "false"
+          enablePodMonitor: "false"

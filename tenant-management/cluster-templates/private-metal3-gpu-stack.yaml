@@ -1,0 +1,78 @@
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterTemplate
+metadata:
+  name: private-nodes-metal3-static-gpu-stack
+spec:
+  displayName: Private Nodes — Metal3 Static with NVIDIA GPU Stack
+  description: Fixed-size Metal3 GPU pool with NVIDIA GPU Operator and NVSentinel delivered by a Stack.
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: argoProject
+      label: Argo CD Project
+      type: string
+      defaultValue: default
+    - variable: driverPreinstalled
+      label: NVIDIA Driver Preinstalled
+      type: boolean
+      defaultValue: "false"
+    - variable: gpuOperatorVersion
+      label: GPU Operator Version
+      type: string
+      defaultValue: v26.3.3
+    - variable: nvsentinelVersion
+      label: NVSentinel Chart and Image Version
+      type: string
+      defaultValue: v1.13.0
+  template:
+    pro:
+      enabled: true
+    helmRelease:
+      chart:
+        name: vcluster
+        repo: https://charts.loft.sh
+        version: "0.37.1"
+      values: |-
+        privateNodes:
+          enabled: true
+          # Workers reach the control plane through the Platform VPN.
+          vpn:
+            enabled: true
+          autoNodes:
+            - provider: metal3-us-va-blacksburg-dc1
+              static:
+                - name: gpu
+                  # This lab has one GPU machine available for private nodes.
+                  quantity: 1
+                  nodeTypeSelector:
+                    - property: vcluster.com/profile
+                      operator: In
+                      values:
+                        - xlarge-gpu
+              # Inherit OS image, SSH keys, and network configuration from the provider.
+
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
+
+        integrations:
+          argoCD:
+            enabled: true
+            connector: demo-lab
+
+        deploy:
+          cni:
+            flannel:
+              enabled: true
+          stacks:
+            - name: gpu
+              displayName: Thinking Machines GPU Stack
+              templateRef:
+                name: thinking-machines-gpu
+              parameters:
+                argoProject: {{ .Values.argoProject | quote }}
+                driverPreinstalled: {{ .Values.driverPreinstalled | toString | quote }}
+                gpuOperatorVersion: {{ .Values.gpuOperatorVersion | quote }}
+                nvsentinelVersion: {{ .Values.nvsentinelVersion | quote }}
