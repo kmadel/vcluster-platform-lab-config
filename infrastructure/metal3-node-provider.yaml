@@ -52,7 +52,7 @@ spec:
               - name: IRONIC_AUTOMATED_CLEAN
                 value: "false"
           ipaImages:
-            replicas: 1
+            replicas: 2
 
     # ------------------------------------------------------------------------
     # NetBox becomes the inventory. The platform only ever READS NetBox.
