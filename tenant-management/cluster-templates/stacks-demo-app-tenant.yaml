@@ -108,3 +108,7 @@ spec:
           coredns:
             enabled: true
             embedded: true
+        sleep:
+          auto:
+            afterInactivity: 300s
+          
