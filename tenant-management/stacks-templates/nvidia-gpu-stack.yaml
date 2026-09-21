@@ -28,7 +28,7 @@ spec:
   # Tasks and parameters belong directly under spec, not spec.template.
   tasks:
     - name: gpu-operator
-      timeout: 45m
+      timeout: 45m0s
       argoCDApplication:
         templateRef:
           name: nvidia-gpu-operator
@@ -42,7 +42,7 @@ spec:
     - name: nvsentinel
       dependsOn:
         - gpu-operator
-      timeout: 20m
+      timeout: 20m0s
       argoCDApplication:
         templateRef:
           name: nvsentinel
