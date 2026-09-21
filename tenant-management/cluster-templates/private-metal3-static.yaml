@@ -117,6 +117,10 @@ spec:
           distro:
             k8s:
               version: "{{ .Values.kubernetesVersion }}"
+          statefulSet:
+            scheduling:
+              nodeSelector:
+                kubernetes.io/hostname: vmetal-w02
         integrations:
           argoCD:
             enabled: true
@@ -173,7 +177,7 @@ spec:
         - '0'
         - '1'
         - '2'
-      defaultValue: '1'
+      defaultValue: '0'
     - variable: xlargeNodeCount
       label: Xlarge Node Count
       description: |
@@ -182,7 +186,7 @@ spec:
         - '0'
         - '1'
         - '2'
-      defaultValue: '1'
+      defaultValue: '0'
     - variable: rackSelector
       label: Rack Selector
       description: |

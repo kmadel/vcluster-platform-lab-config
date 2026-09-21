@@ -8,7 +8,7 @@ spec:
     user: admin
   quotas: {}
   allowedClusters:
-    - name: loft-cluster
+    - name: spark-cluster
   allowedTemplates:
     - kind: VirtualClusterTemplate
       group: storage.loft.sh
