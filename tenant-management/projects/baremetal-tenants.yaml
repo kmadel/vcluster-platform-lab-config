@@ -16,6 +16,9 @@ spec:
     - kind: VirtualClusterTemplate
       group: storage.loft.sh
       name: private-nodes-metal3-dynamic
+    - kind: VirtualClusterTemplate
+      group: storage.loft.sh
+      name: private-nodes-metal3-static-gpu-stack
   allowedNodeTypes: null
   allowedNodeProfiles: null
   requireTemplate: {}
