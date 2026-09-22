@@ -52,6 +52,10 @@ spec:
           distro:
             k8s:
               version: "{{ .Values.kubernetesVersion }}"
+          statefulSet:
+            scheduling:
+              nodeSelector:
+                kubernetes.io/hostname: vmetal-w02
         integrations:
           argoCD:
             enabled: true
@@ -67,10 +71,11 @@ spec:
       description: |
         Control plane Kubernetes version. Updating this value triggers a rolling upgrade of the vCluster control plane. The bare metal node kubelet is re-provisioned separately via the NodeClaim lifecycle.
       options:
-        - v1.34.9
-        - v1.35.6
-        - v1.36.2
-      defaultValue: v1.35.6
+        - v1.34.11
+        - v1.35.8
+        - v1.36.4
+        - v1.37.0
+      defaultValue: v1.36.4
     - variable: cpuLimit
       label: CPU Limit
       description: |

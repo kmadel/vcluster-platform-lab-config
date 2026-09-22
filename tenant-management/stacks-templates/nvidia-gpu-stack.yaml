@@ -49,6 +49,7 @@ spec:
     - name: nvsentinel
       dependsOn:
         - gpu-operator
+        - cert-manager
       timeout: 20m0s
       argoCDApplication:
         templateRef:

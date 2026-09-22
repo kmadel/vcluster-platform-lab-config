@@ -145,10 +145,11 @@ spec:
       description: |
         Control plane Kubernetes version. Updating this value triggers a rolling upgrade of the vCluster control plane while the fixed worker pools remain managed through the NodeClaim lifecycle.
       options:
-        - v1.34.9
-        - v1.35.6
-        - v1.36.2
-      defaultValue: v1.35.6
+        - v1.34.11
+        - v1.35.8
+        - v1.36.4
+        - v1.37.0
+      defaultValue: v1.36.4
     - variable: smallNodeCount
       label: Small Node Count
       description: |

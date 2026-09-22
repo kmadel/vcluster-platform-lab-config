@@ -38,6 +38,10 @@ spec:
           distro:
             k8s:
               version: "{{ .Values.kubernetesVersion }}"
+          statefulSet:
+            scheduling:
+              nodeSelector:
+                kubernetes.io/hostname: vmetal-w02
         integrations:
           argoCD:
             enabled: true
