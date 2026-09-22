@@ -54,6 +54,7 @@ spec:
             - provider: metal3-us-va-blacksburg-dc1
               static:
                 - name: gpu
+                  profile: gpu-compute
                   # This lab has one GPU machine available for private nodes.
                   quantity: 1
                   nodeTypeSelector:
@@ -62,6 +63,11 @@ spec:
                       values:
                         - xlarge-gpu
               # Inherit OS image, SSH keys, and network configuration from the provider.
+            - provider: kubevirt-us-va-blacksburg-dc1
+              static:
+                - name: vm-node-pool
+                  profile: cpu-services
+                  quantity: 1
 
         controlPlane:
           backingStore:

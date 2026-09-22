@@ -1,0 +1,271 @@
+# Parameterized cert-manager application with CPU service pool placement.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: demo-cert-manager
+spec:
+  displayName: Demo Cert Manager
+  template:
+    metadata: {}
+    spec:
+      destination:
+        namespace: '{{ .Values.destinationNamespace }}'
+      project: '{{ .Values.project }}'
+      source:
+        chart: '{{ .Values.chart }}'
+        helm:
+          releaseName: '{{ .Values.releaseName }}'
+          values: |
+            # The CPU service profile is untainted; no additional tolerations are needed.
+            global:
+              nodeSelector:
+                kubernetes.io/os: linux
+                workload.example.com/pool: {{ .Values.cpuNodePool | quote }}
+            crds:
+              enabled: {{ .Values.installCRDs }}
+              keep: {{ .Values.keepCRDs }}
+            replicaCount: {{ .Values.replicaCount }}
+            {{- if or .Values.controllerCPURequest .Values.controllerMemoryRequest .Values.controllerCPULimit .Values.controllerMemoryLimit }}
+            resources:
+              {{- if or .Values.controllerCPURequest .Values.controllerMemoryRequest }}
+              requests:
+                {{- if .Values.controllerCPURequest }}
+                cpu: {{ .Values.controllerCPURequest | quote }}
+                {{- end }}
+                {{- if .Values.controllerMemoryRequest }}
+                memory: {{ .Values.controllerMemoryRequest | quote }}
+                {{- end }}
+              {{- end }}
+              {{- if or .Values.controllerCPULimit .Values.controllerMemoryLimit }}
+              limits:
+                {{- if .Values.controllerCPULimit }}
+                cpu: {{ .Values.controllerCPULimit | quote }}
+                {{- end }}
+                {{- if .Values.controllerMemoryLimit }}
+                memory: {{ .Values.controllerMemoryLimit | quote }}
+                {{- end }}
+              {{- end }}
+            {{- end }}
+            {{- if or .Values.webhookCPURequest .Values.webhookMemoryRequest .Values.webhookCPULimit .Values.webhookMemoryLimit }}
+            webhook:
+              resources:
+                {{- if or .Values.webhookCPURequest .Values.webhookMemoryRequest }}
+                requests:
+                  {{- if .Values.webhookCPURequest }}
+                  cpu: {{ .Values.webhookCPURequest | quote }}
+                  {{- end }}
+                  {{- if .Values.webhookMemoryRequest }}
+                  memory: {{ .Values.webhookMemoryRequest | quote }}
+                  {{- end }}
+                {{- end }}
+                {{- if or .Values.webhookCPULimit .Values.webhookMemoryLimit }}
+                limits:
+                  {{- if .Values.webhookCPULimit }}
+                  cpu: {{ .Values.webhookCPULimit | quote }}
+                  {{- end }}
+                  {{- if .Values.webhookMemoryLimit }}
+                  memory: {{ .Values.webhookMemoryLimit | quote }}
+                  {{- end }}
+                {{- end }}
+            {{- end }}
+            {{- if or .Values.cainjectorCPURequest .Values.cainjectorMemoryRequest .Values.cainjectorCPULimit .Values.cainjectorMemoryLimit }}
+            cainjector:
+              resources:
+                {{- if or .Values.cainjectorCPURequest .Values.cainjectorMemoryRequest }}
+                requests:
+                  {{- if .Values.cainjectorCPURequest }}
+                  cpu: {{ .Values.cainjectorCPURequest | quote }}
+                  {{- end }}
+                  {{- if .Values.cainjectorMemoryRequest }}
+                  memory: {{ .Values.cainjectorMemoryRequest | quote }}
+                  {{- end }}
+                {{- end }}
+                {{- if or .Values.cainjectorCPULimit .Values.cainjectorMemoryLimit }}
+                limits:
+                  {{- if .Values.cainjectorCPULimit }}
+                  cpu: {{ .Values.cainjectorCPULimit | quote }}
+                  {{- end }}
+                  {{- if .Values.cainjectorMemoryLimit }}
+                  memory: {{ .Values.cainjectorMemoryLimit | quote }}
+                  {{- end }}
+                {{- end }}
+            {{- end }}
+            prometheus:
+              enabled: {{ .Values.prometheusEnabled }}
+              servicemonitor:
+                enabled: {{ .Values.serviceMonitorEnabled }}
+                interval: {{ .Values.serviceMonitorInterval | quote }}
+        repoURL: '{{ .Values.repoURL }}'
+        targetRevision: '{{ .Values.version }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
+          limit: 10
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - SkipDryRunOnMissingResource=true
+  parameters:
+    - variable: destinationNamespace
+      label: Destination Namespace
+      type: string
+      required: true
+      defaultValue: cert-manager
+    - variable: project
+      label: ArgoCD Project
+      description: ArgoCD project the application belongs to. Change it to deploy into a different project.
+      type: string
+      required: true
+      defaultValue: default
+    - variable: version
+      label: cert-manager version
+      type: string
+      required: true
+      defaultValue: v1.20.3
+    - variable: repoURL
+      label: Chart Repository URL
+      description: Helm chart repository URL for the cert-manager chart. Change to use a mirror or private registry.
+      type: string
+      required: true
+      defaultValue: https://charts.jetstack.io
+    - variable: releaseName
+      label: Release Name
+      description: Helm release name for the cert-manager chart. Change it to install more than one copy in the
+        same cluster or to match an existing release.
+      type: string
+      required: true
+      defaultValue: cert-manager
+    - variable: chart
+      label: Chart Name
+      description: Helm chart name pulled from the repository. Change it to deploy a renamed or forked chart.
+      type: string
+      required: true
+      defaultValue: cert-manager
+    - variable: installCRDs
+      label: Install CRDs
+      description: Install the cert-manager CustomResourceDefinitions (Certificate, Issuer, ClusterIssuer, etc.).
+        Disable if the CRDs are managed separately.
+      type: boolean
+      defaultValue: 'true'
+    - variable: keepCRDs
+      label: Keep CRDs on Uninstall
+      description: Keep the CRDs on uninstall. Prevents Certificate, Issuer, and related resources from being deleted
+        when the release is removed.
+      type: boolean
+      defaultValue: 'true'
+      section: CRDs
+    - variable: replicaCount
+      label: Controller Replicas
+      description: Number of cert-manager controller replicas. Set to 2 or more for high availability. Must not
+        be empty.
+      type: number
+      required: true
+      defaultValue: '1'
+      section: High Availability
+    - variable: controllerCPURequest
+      label: Controller CPU Request
+      description: CPU request for the controller (e.g. 10m). Leave empty to use the chart default.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: controllerMemoryRequest
+      label: Controller Memory Request
+      description: Memory request for the controller (e.g. 32Mi). Leave empty to use the chart default.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: controllerCPULimit
+      label: Controller CPU Limit
+      description: CPU limit for the controller (e.g. 100m). Leave empty for no limit.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: controllerMemoryLimit
+      label: Controller Memory Limit
+      description: Memory limit for the controller (e.g. 128Mi). Leave empty for no limit.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: webhookCPURequest
+      label: Webhook CPU Request
+      description: CPU request for the webhook (e.g. 10m). Leave empty to use the chart default.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: webhookMemoryRequest
+      label: Webhook Memory Request
+      description: Memory request for the webhook (e.g. 32Mi). Leave empty to use the chart default.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: webhookCPULimit
+      label: Webhook CPU Limit
+      description: CPU limit for the webhook (e.g. 100m). Leave empty for no limit.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: webhookMemoryLimit
+      label: Webhook Memory Limit
+      description: Memory limit for the webhook (e.g. 128Mi). Leave empty for no limit.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: cainjectorCPURequest
+      label: CA Injector CPU Request
+      description: CPU request for the cainjector (e.g. 10m). Leave empty to use the chart default.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: cainjectorMemoryRequest
+      label: CA Injector Memory Request
+      description: Memory request for the cainjector (e.g. 32Mi). Leave empty to use the chart default.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: cainjectorCPULimit
+      label: CA Injector CPU Limit
+      description: CPU limit for the cainjector (e.g. 100m). Leave empty for no limit.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: cainjectorMemoryLimit
+      label: CA Injector Memory Limit
+      description: Memory limit for the cainjector (e.g. 128Mi). Leave empty for no limit.
+      type: string
+      section: Resources
+      defaultValue: ''
+    - variable: prometheusEnabled
+      label: Prometheus Metrics Enabled
+      description: Expose controller, webhook, and cainjector metrics endpoints for Prometheus scraping.
+      type: boolean
+      defaultValue: 'true'
+      section: Metrics
+    - variable: serviceMonitorEnabled
+      label: ServiceMonitor Enabled
+      description: Create a Prometheus Operator ServiceMonitor for cert-manager. Requires the ServiceMonitor CRD
+        to be installed.
+      type: boolean
+      defaultValue: 'false'
+      section: Metrics
+    - variable: serviceMonitorInterval
+      label: ServiceMonitor Scrape Interval
+      description: Scrape interval for the ServiceMonitor. Must not be empty.
+      type: string
+      required: true
+      defaultValue: 60s
+      section: Metrics
+    - variable: cpuNodePool
+      label: CPU Service Pool Label
+      description: Value of workload.example.com/pool on CPU service nodes. Applies to controller, webhook, cainjector,
+        and startup API check.
+      type: string
+      required: true
+      defaultValue: cpu-services
+  owner:
+    team: loft-admins

@@ -1,0 +1,13 @@
+apiVersion: management.loft.sh/v1
+kind: NodeProfile
+metadata:
+  name: gpu-compute
+spec:
+  displayName: Demo - GPU Compute
+  description: GPU workers reserved for workloads with the NVIDIA GPU toleration.
+  nodeLabels:
+    workload.example.com/pool: gpu-compute
+  taints:
+  - key: nvidia.com/gpu
+    value: 'true'
+    effect: NoSchedule

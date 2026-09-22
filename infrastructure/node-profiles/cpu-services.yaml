@@ -1,0 +1,9 @@
+apiVersion: management.loft.sh/v1
+kind: NodeProfile
+metadata:
+  name: cpu-services
+spec:
+  displayName: Demo - CPU Services
+  description: CPU service workers.
+  nodeLabels:
+    workload.example.com/pool: cpu-services

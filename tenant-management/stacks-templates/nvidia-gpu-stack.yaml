@@ -8,6 +8,12 @@ spec:
   owner:
     team: loft-admins
   parameters:
+    - variable: cpuNodePool
+      label: CPU Service Pool Label
+      description: Value of workload.example.com/pool on CPU service workers.
+      type: string
+      required: true
+      defaultValue: cpu-services
     - variable: gpuOperatorVersion
       label: GPU Operator Version
       type: string
@@ -33,6 +39,7 @@ spec:
         templateRef:
           name: cert-manager
         parameters:
+          cpuNodePool: '{{ .Values.cpuNodePool }}'
           project: "{{ .Values.argoProject }}"
     - name: gpu-operator
       timeout: 45m0s
@@ -40,6 +47,7 @@ spec:
         templateRef:
           name: nvidia-gpu-operator
         parameters:
+          cpuNodePool: '{{ .Values.cpuNodePool }}'
           version: "{{ .Values.gpuOperatorVersion }}"
           project: "{{ .Values.argoProject }}"
           destinationNamespace: gpu-operator
@@ -55,6 +63,7 @@ spec:
         templateRef:
           name: nvsentinel
         parameters:
+          cpuNodePool: '{{ .Values.cpuNodePool }}'
           version: "{{ .Values.nvsentinelVersion }}"
           imageTag: "{{ .Values.nvsentinelVersion }}"
           project: "{{ .Values.argoProject }}"
