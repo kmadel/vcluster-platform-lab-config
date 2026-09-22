@@ -63,9 +63,9 @@ spec:
                       values:
                         - xlarge-gpu
               # Inherit OS image, SSH keys, and network configuration from the provider.
-            - provider: kubevirt-us-va-blacksburg-dc1
+            - provider: metal3-us-va-blacksburg-dc1
               static:
-                - name: metal3-us-va-blacksburg-dc1
+                - name: cpu-services
                   profile: cpu-services
                   quantity: 1
                   nodeTypeSelector:
