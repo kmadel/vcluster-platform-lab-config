@@ -37,7 +37,7 @@ spec:
       timeout: 10m0s
       argoCDApplication:
         templateRef:
-          name: cert-manager
+          name: demo-cert-manager
         parameters:
           cpuNodePool: '{{ .Values.cpuNodePool }}'
           project: "{{ .Values.argoProject }}"
@@ -45,7 +45,7 @@ spec:
       timeout: 45m0s
       argoCDApplication:
         templateRef:
-          name: nvidia-gpu-operator
+          name: demo-gpu-operator
         parameters:
           cpuNodePool: '{{ .Values.cpuNodePool }}'
           version: "{{ .Values.gpuOperatorVersion }}"
@@ -61,7 +61,7 @@ spec:
       timeout: 20m0s
       argoCDApplication:
         templateRef:
-          name: nvsentinel
+          name: demo-nvsentinel
         parameters:
           cpuNodePool: '{{ .Values.cpuNodePool }}'
           version: "{{ .Values.nvsentinelVersion }}"
