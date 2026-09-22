@@ -65,9 +65,14 @@ spec:
               # Inherit OS image, SSH keys, and network configuration from the provider.
             - provider: kubevirt-us-va-blacksburg-dc1
               static:
-                - name: vm-node-pool
+                - name: metal3-us-va-blacksburg-dc1
                   profile: cpu-services
                   quantity: 1
+                  nodeTypeSelector:
+                    - property: vcluster.com/profile
+                      operator: In
+                      values:
+                        - small
 
         controlPlane:
           backingStore:
