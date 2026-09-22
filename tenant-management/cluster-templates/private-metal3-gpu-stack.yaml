@@ -97,6 +97,7 @@ spec:
               templateRef:
                 name: nvidia-gpu-stack
               parameters:
+                cpuNodePool: 'cpu-services'
                 argoProject: {{ .Values.argoProject | quote }}
                 driverPreinstalled: {{ .Values.driverPreinstalled | toString | quote }}
                 gpuOperatorVersion: {{ .Values.gpuOperatorVersion | quote }}
