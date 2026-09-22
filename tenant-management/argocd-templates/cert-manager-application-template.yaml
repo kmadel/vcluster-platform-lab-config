@@ -173,73 +173,61 @@ spec:
       description: CPU request for the controller (e.g. 10m). Leave empty to use the chart default.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: controllerMemoryRequest
       label: Controller Memory Request
       description: Memory request for the controller (e.g. 32Mi). Leave empty to use the chart default.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: controllerCPULimit
       label: Controller CPU Limit
       description: CPU limit for the controller (e.g. 100m). Leave empty for no limit.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: controllerMemoryLimit
       label: Controller Memory Limit
       description: Memory limit for the controller (e.g. 128Mi). Leave empty for no limit.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: webhookCPURequest
       label: Webhook CPU Request
       description: CPU request for the webhook (e.g. 10m). Leave empty to use the chart default.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: webhookMemoryRequest
       label: Webhook Memory Request
       description: Memory request for the webhook (e.g. 32Mi). Leave empty to use the chart default.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: webhookCPULimit
       label: Webhook CPU Limit
       description: CPU limit for the webhook (e.g. 100m). Leave empty for no limit.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: webhookMemoryLimit
       label: Webhook Memory Limit
       description: Memory limit for the webhook (e.g. 128Mi). Leave empty for no limit.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: cainjectorCPURequest
       label: CA Injector CPU Request
       description: CPU request for the cainjector (e.g. 10m). Leave empty to use the chart default.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: cainjectorMemoryRequest
       label: CA Injector Memory Request
       description: Memory request for the cainjector (e.g. 32Mi). Leave empty to use the chart default.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: cainjectorCPULimit
       label: CA Injector CPU Limit
       description: CPU limit for the cainjector (e.g. 100m). Leave empty for no limit.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: cainjectorMemoryLimit
       label: CA Injector Memory Limit
       description: Memory limit for the cainjector (e.g. 128Mi). Leave empty for no limit.
       type: string
       section: Resources
-      defaultValue: ''
     - variable: prometheusEnabled
       label: Prometheus Metrics Enabled
       description: Expose controller, webhook, and cainjector metrics endpoints for Prometheus scraping.
