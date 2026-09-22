@@ -10,6 +10,16 @@ spec:
   owner:
     team: loft-admins
   parameters:
+    - variable: kubernetesVersion
+      label: Kubernetes Version
+      description: |
+        Control plane Kubernetes version. Updating this value triggers a rolling upgrade of the vCluster control plane while the fixed worker pools remain managed through the NodeClaim lifecycle.
+      options:
+        - v1.34.11
+        - v1.35.8
+        - v1.36.4
+        - v1.37.0
+      defaultValue: v1.36.4
     - variable: argoProject
       label: Argo CD Project
       type: string
@@ -58,6 +68,13 @@ spec:
             etcd:
               embedded:
                 enabled: true
+          distro:
+            k8s:
+              version: "{{ .Values.kubernetesVersion }}"
+          statefulSet:
+            scheduling:
+              nodeSelector:
+                kubernetes.io/hostname: vmetal-w02
 
         integrations:
           argoCD:
