@@ -1,0 +1,32 @@
+# infrastructure-app.yaml - Layer 1 (platform config as code).
+#
+# A plain Argo CD Application that reconciles the management.loft.sh resources
+# for vCluster Platform bare metal resources:
+# - OS Images, Network Environment (`OSImage`, `NetworkEnvironment` resources)
+#
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bare-metal
+  namespace: argocd
+  annotations:
+    # Land the App Templates / templates before anything references them.
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+    targetRevision: main
+    path: bare-metal
+    directory:
+      recurse: true
+  destination:
+    # Argo CD runs alongside vCluster Platform on the kpi cluster.
+    server: https://kubernetes.default.svc
+    # management.loft.sh resources are cluster-scoped; this namespace is nominal.
+    # Set it to the namespace vCluster Platform is installed in.
+    namespace: vcluster-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

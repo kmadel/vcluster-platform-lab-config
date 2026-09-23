@@ -1,0 +1,10 @@
+apiVersion: management.loft.sh/v1
+kind: OSImage
+metadata:
+  name: ubuntu-noble-nvidia-gpu
+spec:
+  displayName: "Ubuntu 24.04 LTS (NVIDIA GPU Node)"
+  properties:
+    metal3.vcluster.com/image-url: "http://172.22.0.1:9000/ubuntu-noble-gpu.img"
+    metal3.vcluster.com/image-checksum: "4f5c7493d8d5855cf55f2efd86a9e8e26a55a36c8d3bb6c45c4dc693b810463f"
+    metal3.vcluster.com/image-checksum-type: "sha256"

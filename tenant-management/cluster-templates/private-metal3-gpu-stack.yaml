@@ -90,6 +90,8 @@ spec:
                   profile: gpu-compute
                   # This lab has one GPU machine available for private nodes.
                   quantity: 1
+                  properties:
+                    vcluster.com/os-image: ubuntu-noble-nvidia-gpu
                   nodeTypeSelector:
                     - property: vcluster.com/profile
                       operator: In
