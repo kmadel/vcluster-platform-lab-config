@@ -45,13 +45,6 @@ spec:
       type: boolean
       defaultValue: "false"
       section: NVSentinel
-    - variable: clusterPolicyHealthCheck
-      label: Argo CD Has A ClusterPolicy Health Check
-      description: Enable when this Argo CD instance defines a custom Lua health check for nvidia.com
-        ClusterPolicy. The gpuready gate then skips its own ClusterPolicy wait.
-      type: boolean
-      defaultValue: "false"
-      section: Argo CD
     - variable: minGPUs
       label: Minimum Allocatable GPUs
       description: How many GPUs the scheduler must advertise before the gpuready gate passes.
@@ -140,6 +133,5 @@ spec:
                 driverPreinstalled: {{ .Values.driverPreinstalled | toString | quote }}
                 certManagerPreinstalled: {{ .Values.certManagerPreinstalled | toString | quote }}
                 minGPUs: {{ .Values.minGPUs | toString | quote }}
-                clusterPolicyHealthCheck: {{ .Values.clusterPolicyHealthCheck | toString | quote }}
                 gpuOperatorVersion: {{ .Values.gpuOperatorVersion | quote }}
                 nvsentinelVersion: {{ .Values.nvsentinelVersion | quote }}
