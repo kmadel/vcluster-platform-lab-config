@@ -1,0 +1,108 @@
+# Runs NVIDIA's CUDA VectorAdd sample on the GPU pool as a Stack task.
+#
+# Same mechanism as the gate: Argo CD's built-in Job health means this task is only
+# Healthy once the sample has actually run on a GPU worker and exited 0. It runs in
+# parallel with NVSentinel, since both only need the gpuready gate to have passed.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: demo-gpu-smoke-test
+spec:
+  displayName: Demo - GPU Smoke Test
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: project
+      label: Argo CD Project
+      type: string
+      required: true
+      defaultValue: default
+    - variable: destinationNamespace
+      label: Destination Namespace
+      type: string
+      required: true
+      defaultValue: gpu-stack
+    - variable: releaseName
+      label: Release Name
+      type: string
+      required: true
+      defaultValue: gpu-smoke-test
+    - variable: gpuPool
+      label: GPU Pool Label Value
+      description: Supplied by the gpuready gate's contract when this runs inside the demo-gpu Stack.
+      type: string
+      required: true
+      defaultValue: gpu-compute
+    - variable: gpuCount
+      label: GPUs Requested
+      description: Whole GPUs the sample requests. It occupies them for the few seconds it runs.
+      type: number
+      required: true
+      defaultValue: '1'
+    - variable: imageRepository
+      label: Sample Image Repository
+      type: string
+      required: true
+      defaultValue: nvcr.io/nvidia/k8s/cuda-sample
+      section: Source
+    - variable: imageTag
+      label: Sample Image Tag
+      type: string
+      required: true
+      defaultValue: vectoradd-cuda12.5.0-ubuntu22.04
+      section: Source
+    - variable: repoURL
+      label: Chart Repository URL
+      type: string
+      required: true
+      defaultValue: https://github.com/loft-demos/ce-demo-nvidia-gpu-operator-stack.git
+      section: Source
+    - variable: targetRevision
+      label: Chart Revision
+      type: string
+      required: true
+      defaultValue: main
+      section: Source
+    - variable: chartPath
+      label: Chart Path
+      type: string
+      required: true
+      defaultValue: charts/gpu-smoke-test
+      section: Source
+  template:
+    spec:
+      destination:
+        namespace: '{{ .Values.destinationNamespace }}'
+      project: '{{ .Values.project }}'
+      source:
+        repoURL: '{{ .Values.repoURL }}'
+        targetRevision: '{{ .Values.targetRevision }}'
+        path: '{{ .Values.chartPath }}'
+        helm:
+          releaseName: '{{ .Values.releaseName }}'
+          values: |
+            image:
+              repository: {{ .Values.imageRepository | quote }}
+              tag: {{ .Values.imageTag | quote }}
+            gpu:
+              pool: {{ .Values.gpuPool | quote }}
+              count: {{ .Values.gpuCount }}
+      ignoreDifferences:
+        - group: batch
+          kind: Job
+          jsonPointers:
+            - /spec/selector
+            - /spec/template/metadata/labels
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
+          limit: 10
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

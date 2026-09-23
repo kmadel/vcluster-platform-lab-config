@@ -1,0 +1,161 @@
+# The "already installed" variant of the cert-manager task.
+#
+# A Stack task cannot be skipped: there is no when/if/enabled field, and control flow
+# is only allowed inside a scalar. The sanctioned idiom is to switch
+# argoCDApplication.templateRef.name between two templates, so certManagerPreinstalled
+# selects this one instead of demo-cert-manager.
+#
+# It installs nothing. It runs the same stack-gate chart against the cert-manager that
+# is already in the cluster and fails loudly if there is nothing there, which keeps the
+# nvsentinel dependency edge honest either way.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: demo-cert-manager-check
+spec:
+  displayName: Demo - cert-manager (preinstalled check)
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: project
+      label: Argo CD Project
+      type: string
+      required: true
+      defaultValue: default
+    - variable: cpuNodePool
+      label: CPU Service Pool Label
+      description: Value of workload.example.com/pool the check Job runs on.
+      type: string
+      required: true
+      defaultValue: cpu-services
+    - variable: destinationNamespace
+      label: Destination Namespace
+      type: string
+      required: true
+      defaultValue: gpu-stack
+    - variable: releaseName
+      label: Release Name
+      type: string
+      required: true
+      defaultValue: cert-manager-check
+    - variable: waitResource
+      label: Resource To Wait For
+      description: The workload that proves cert-manager can actually issue certificates.
+      type: string
+      required: true
+      defaultValue: deployment/cert-manager-webhook
+      section: Wait
+    - variable: waitNamespace
+      label: Resource Namespace
+      type: string
+      required: true
+      defaultValue: cert-manager
+      section: Wait
+    - variable: waitCondition
+      label: Wait Condition
+      type: string
+      required: true
+      defaultValue: condition=Available
+      section: Wait
+    - variable: waitTimeout
+      label: Wait Timeout
+      type: string
+      required: true
+      defaultValue: 10m
+      section: Wait
+    - variable: existsTimeoutSeconds
+      label: Existence Timeout (seconds)
+      description: How long to poll for the resource before failing. A cluster that was declared to have
+        cert-manager already should produce it quickly.
+      type: number
+      required: true
+      defaultValue: '600'
+      section: Wait
+    - variable: repoURL
+      label: Chart Repository URL
+      type: string
+      required: true
+      defaultValue: https://github.com/loft-demos/ce-demo-nvidia-gpu-operator-stack.git
+      section: Source
+    - variable: targetRevision
+      label: Chart Revision
+      type: string
+      required: true
+      defaultValue: main
+      section: Source
+    - variable: chartPath
+      label: Chart Path
+      type: string
+      required: true
+      defaultValue: charts/stack-gate
+      section: Source
+    - variable: imageRepository
+      label: Gate Image Repository
+      type: string
+      required: true
+      defaultValue: ghcr.io/loft-demos/ce-demo-nvidia-gpu-operator-stack/stack-gate
+      section: Source
+    - variable: imageTag
+      label: Gate Image Tag
+      type: string
+      required: true
+      defaultValue: edge
+      section: Source
+  template:
+    spec:
+      destination:
+        namespace: '{{ .Values.destinationNamespace }}'
+      project: '{{ .Values.project }}'
+      source:
+        repoURL: '{{ .Values.repoURL }}'
+        targetRevision: '{{ .Values.targetRevision }}'
+        path: '{{ .Values.chartPath }}'
+        helm:
+          releaseName: '{{ .Values.releaseName }}'
+          values: |
+            image:
+              repository: {{ .Values.imageRepository | quote }}
+              tag: {{ .Values.imageTag | quote }}
+            wait:
+              resource: {{ .Values.waitResource | quote }}
+              namespace: {{ .Values.waitNamespace | quote }}
+              condition: {{ .Values.waitCondition | quote }}
+              timeout: {{ .Values.waitTimeout | quote }}
+              existsTimeoutSeconds: {{ .Values.existsTimeoutSeconds }}
+            # Nothing to count, and nothing to publish: this task only proves
+            # cert-manager is present and serving.
+            capacity:
+              resource: ""
+              min: 0
+              nodeSelector: ""
+            contract:
+              name: ""
+              data: {}
+            job:
+              nodeSelector:
+                kubernetes.io/os: linux
+                workload.example.com/pool: {{ .Values.cpuNodePool | quote }}
+            rbac:
+              clusterRules:
+                - apiGroups: ["apps"]
+                  resources: ["deployments"]
+                  verbs: ["get", "list", "watch"]
+      ignoreDifferences:
+        - group: batch
+          kind: Job
+          jsonPointers:
+            - /spec/selector
+            - /spec/template/metadata/labels
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
+          limit: 10
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

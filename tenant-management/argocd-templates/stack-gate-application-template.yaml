@@ -1,0 +1,234 @@
+# A reusable readiness gate. The Job it deploys waits for a resource to report ready
+# and for capacity to be advertised, then publishes a contract ConfigMap.
+#
+# Argo CD's built-in Job health does the work: Progressing while the Job runs,
+# Healthy when it completes. A Stack task that deploys this Application is therefore
+# a real gate, with no argocd-cm customization and no cluster-wide side effects.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: demo-stack-gate
+spec:
+  displayName: Demo - Stack Gate
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: project
+      label: Argo CD Project
+      type: string
+      required: true
+      defaultValue: default
+    - variable: destinationNamespace
+      label: Destination Namespace
+      description: Namespace for the gate Job and the contract ConfigMap. Stack tasks can only read outputs from
+        a namespace the stack deploys into.
+      type: string
+      required: true
+      defaultValue: gpu-stack
+    - variable: releaseName
+      label: Release Name
+      type: string
+      required: true
+      defaultValue: gpu-ready
+    - variable: cpuNodePool
+      label: CPU Service Pool Label
+      description: Value of workload.example.com/pool the gate Job runs on. The gate only talks to the API server.
+      type: string
+      required: true
+      defaultValue: cpu-services
+    - variable: waitEnabled
+      label: Wait For The Resource
+      description: Disable when this Argo CD instance already has a custom Lua health check for the watched kind,
+        which makes the wait redundant. The capacity check below is independent and still applies.
+      type: boolean
+      required: true
+      defaultValue: 'true'
+      section: Wait
+    - variable: waitResource
+      label: Resource To Wait For
+      description: TYPE/NAME passed to kubectl, for example clusterpolicy/cluster-policy or deployment/cert-manager-webhook.
+      type: string
+      required: true
+      defaultValue: clusterpolicy/cluster-policy
+      section: Wait
+    - variable: waitNamespace
+      label: Resource Namespace
+      description: Leave empty for a cluster-scoped resource.
+      type: string
+      defaultValue: ''
+      section: Wait
+    - variable: waitCondition
+      label: Wait Condition
+      description: Passed to kubectl wait --for. Leave empty to wait only for the resource to exist.
+      type: string
+      defaultValue: jsonpath={.status.state}=ready
+      section: Wait
+    - variable: waitTimeout
+      label: Wait Timeout
+      type: string
+      required: true
+      defaultValue: 30m
+      section: Wait
+    - variable: existsTimeoutSeconds
+      label: Existence Timeout (seconds)
+      description: How long to poll for the resource before failing. This window also covers a CRD that is not
+        served yet.
+      type: number
+      required: true
+      defaultValue: '900'
+      section: Wait
+    - variable: watchAPIGroup
+      label: Watched API Group
+      description: API group of the watched resource, granted read-only to the gate. Empty string for core resources.
+      type: string
+      defaultValue: nvidia.com
+      section: Wait
+    - variable: watchResources
+      label: Watched Resource Plural
+      description: Plural resource name of the watched resource, for example clusterpolicies or deployments.
+      type: string
+      required: true
+      defaultValue: clusterpolicies
+      section: Wait
+    - variable: capacityResource
+      label: Capacity Resource
+      description: Scheduler resource that must be allocatable before the gate passes. Leave empty to skip the
+        capacity check.
+      type: string
+      defaultValue: nvidia.com/gpu
+      section: Capacity
+    - variable: capacityMin
+      label: Minimum Allocatable
+      description: Minimum total allocatable capacity across the selected nodes. 0 skips the check.
+      type: number
+      required: true
+      defaultValue: '1'
+      section: Capacity
+    - variable: capacityNodeSelector
+      label: Capacity Node Selector
+      description: Label selector limiting which nodes count toward the capacity check.
+      type: string
+      defaultValue: workload.example.com/pool=gpu-compute
+      section: Capacity
+    - variable: contractName
+      label: Contract ConfigMap Name
+      description: ConfigMap written once every check passes. Leave empty for a gate that publishes nothing.
+      type: string
+      defaultValue: gpu-stack-contract
+      section: Contract
+    - variable: gpuPool
+      label: GPU Pool Label Value
+      description: Recorded in the contract so consumers do not hard-code it.
+      type: string
+      defaultValue: gpu-compute
+      section: Contract
+    - variable: dcgmHost
+      label: DCGM Service Host
+      description: Recorded in the contract for NVSentinel and any other DCGM consumer.
+      type: string
+      defaultValue: nvidia-dcgm.gpu-operator.svc
+      section: Contract
+    - variable: dcgmPort
+      label: DCGM Service Port
+      type: string
+      defaultValue: '5555'
+      section: Contract
+    - variable: repoURL
+      label: Chart Repository URL
+      description: Git repository holding the stack-gate chart. Change it to point at your fork.
+      type: string
+      required: true
+      defaultValue: https://github.com/loft-demos/ce-demo-nvidia-gpu-operator-stack.git
+      section: Source
+    - variable: targetRevision
+      label: Chart Revision
+      type: string
+      required: true
+      defaultValue: main
+      section: Source
+    - variable: chartPath
+      label: Chart Path
+      type: string
+      required: true
+      defaultValue: charts/stack-gate
+      section: Source
+    - variable: imageRepository
+      label: Gate Image Repository
+      type: string
+      required: true
+      defaultValue: ghcr.io/loft-demos/ce-demo-nvidia-gpu-operator-stack/stack-gate
+      section: Source
+    - variable: imageTag
+      label: Gate Image Tag
+      type: string
+      required: true
+      defaultValue: edge
+      section: Source
+  template:
+    spec:
+      destination:
+        namespace: '{{ .Values.destinationNamespace }}'
+      project: '{{ .Values.project }}'
+      source:
+        repoURL: '{{ .Values.repoURL }}'
+        targetRevision: '{{ .Values.targetRevision }}'
+        path: '{{ .Values.chartPath }}'
+        helm:
+          releaseName: '{{ .Values.releaseName }}'
+          values: |
+            image:
+              repository: {{ .Values.imageRepository | quote }}
+              tag: {{ .Values.imageTag | quote }}
+            wait:
+              resource: {{ if eq (.Values.waitEnabled | toString) "true" }}{{ .Values.waitResource | quote }}{{ else }}""{{ end }}
+              namespace: {{ .Values.waitNamespace | quote }}
+              condition: {{ .Values.waitCondition | quote }}
+              timeout: {{ .Values.waitTimeout | quote }}
+              existsTimeoutSeconds: {{ .Values.existsTimeoutSeconds }}
+            capacity:
+              resource: {{ .Values.capacityResource | quote }}
+              min: {{ .Values.capacityMin }}
+              nodeSelector: {{ .Values.capacityNodeSelector | quote }}
+            contract:
+              name: {{ .Values.contractName | quote }}
+              data:
+                {{- if .Values.gpuPool }}
+                gpuPool: {{ .Values.gpuPool | quote }}
+                {{- end }}
+                {{- if .Values.dcgmHost }}
+                dcgmHost: {{ .Values.dcgmHost | quote }}
+                dcgmPort: {{ .Values.dcgmPort | quote }}
+                {{- end }}
+            job:
+              nodeSelector:
+                kubernetes.io/os: linux
+                workload.example.com/pool: {{ .Values.cpuNodePool | quote }}
+            rbac:
+              clusterRules:
+                - apiGroups: [{{ .Values.watchAPIGroup | quote }}]
+                  resources: [{{ .Values.watchResources | quote }}]
+                  verbs: ["get", "list", "watch"]
+                - apiGroups: [""]
+                  resources: ["nodes"]
+                  verbs: ["get", "list", "watch"]
+      # A completed Job's live spec carries controller-generated fields. Without this,
+      # self-heal would keep trying to reconcile them and hold the Application OutOfSync.
+      ignoreDifferences:
+        - group: batch
+          kind: Job
+          jsonPointers:
+            - /spec/selector
+            - /spec/template/metadata/labels
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
+          limit: 10
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

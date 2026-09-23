@@ -1,10 +1,11 @@
 apiVersion: management.loft.sh/v1
 kind: StackTemplate
 metadata:
-  name: nvidia-gpu-stack
+  name: demo-gpu
 spec:
-  displayName: NVIDIA GPU Stack
-  description: NVIDIA GPU Operator followed by NVSentinel on tenant private nodes.
+  displayName: Demo - NVIDIA GPU Stack
+  description: NVIDIA GPU Operator and NVSentinel on GPU workers, with cert-manager and stack controllers on CPU
+    service workers, gated on GPUs the scheduler can actually see.
   owner:
     team: loft-admins
   parameters:
@@ -26,21 +27,62 @@ spec:
       label: NVIDIA Driver Preinstalled
       description: Enable when the node OS image already contains the NVIDIA driver.
       type: boolean
-      defaultValue: "false"
+      defaultValue: 'false'
+    - variable: certManagerPreinstalled
+      label: cert-manager Already Installed
+      description: Enable when the tenant cluster already runs cert-manager. The cert-manager task then verifies
+        that installation instead of installing its own.
+      type: boolean
+      defaultValue: 'false'
+    - variable: clusterPolicyHealthCheck
+      label: Argo CD Has A ClusterPolicy Health Check
+      description: Enable when this Argo CD instance defines a custom Lua health check for nvidia.com
+        ClusterPolicy. The gpuready gate then skips its own ClusterPolicy wait and only verifies allocatable
+        GPU capacity, which no ClusterPolicy health check covers.
+      type: boolean
+      defaultValue: 'false'
+    - variable: minGPUs
+      label: Minimum Allocatable GPUs
+      description: How many GPUs the scheduler must advertise before the gpuready gate passes and NVSentinel starts.
+      type: number
+      required: true
+      defaultValue: '1'
     - variable: argoProject
       label: Argo CD Project
       type: string
       defaultValue: default
-  # Tasks and parameters belong directly under spec, not spec.template.
+  # Values the gate publishes, readable from the StackInstance outputs subresource.
+  publishedOutputs:
+    - name: gpucount
+      fromTask:
+        task: gpuready
+        output: gpucount
+    - name: gpupool
+      fromTask:
+        task: gpuready
+        output: gpupool
+    - name: dcgmhost
+      fromTask:
+        task: gpuready
+        output: dcgmhost
+    - name: dcgmport
+      fromTask:
+        task: gpuready
+        output: dcgmport
   tasks:
     - name: cert-manager
-      timeout: 10m0s
+      timeout: 15m0s
       argoCDApplication:
+        # A Stack task cannot be skipped: there is no when/if/enabled field, and control
+        # flow is only legal inside a scalar. Switching templateRef.name is the sanctioned
+        # idiom, so certManagerPreinstalled sends this task to demo-cert-manager-check,
+        # which verifies the existing installation instead of installing a second one.
+        # Both templates take the same two parameters, so this map serves either one.
         templateRef:
-          name: demo-cert-manager
+          name: 'demo-cert-manager{{ if eq (.Values.certManagerPreinstalled | toString) "true" }}-check{{ end }}'
         parameters:
           cpuNodePool: '{{ .Values.cpuNodePool }}'
-          project: "{{ .Values.argoProject }}"
+          project: '{{ .Values.argoProject }}'
     - name: gpu-operator
       timeout: 45m0s
       argoCDApplication:
@@ -48,15 +90,78 @@ spec:
           name: demo-gpu-operator
         parameters:
           cpuNodePool: '{{ .Values.cpuNodePool }}'
-          version: "{{ .Values.gpuOperatorVersion }}"
-          project: "{{ .Values.argoProject }}"
-          destinationNamespace: gpu-operator
-          driverEnabled: '{{ if eq (.Values.driverPreinstalled | toString) "true" }}false{{ else }}true{{ end }}'
-          dcgmEnabled: "true"
-          dcgmExporterServiceMonitorEnabled: "false"
-    - name: nvsentinel
+          version: '{{ .Values.gpuOperatorVersion }}'
+          project: '{{ .Values.argoProject }}'
+          driverPreinstalled: '{{ .Values.driverPreinstalled | toString }}'
+    # The GPU Operator Application goes Healthy as soon as its resources are created,
+    # which is long before a driver is built and a GPU is schedulable. This task is the
+    # real readiness gate: a Job that waits for ClusterPolicy to report ready and for the
+    # scheduler to advertise GPUs, then publishes the contract other tasks consume.
+    # Argo CD's built-in Job health supplies the Progressing-until-complete behavior, so
+    # no argocd-cm customization is involved.
+    #
+    # The name has no hyphen on purpose: a task that declares outputs is referenced as
+    # {{ .Outputs.task.name }}, and the template syntax cannot address a name with "-".
+    - name: gpuready
       dependsOn:
         - gpu-operator
+      timeout: 45m0s
+      argoCDApplication:
+        templateRef:
+          name: demo-stack-gate
+        parameters:
+          cpuNodePool: '{{ .Values.cpuNodePool }}'
+          project: '{{ .Values.argoProject }}'
+          capacityMin: '{{ .Values.minGPUs }}'
+          # An Argo CD instance with a Lua health check for ClusterPolicy already holds
+          # gpu-operator Progressing until the policy is ready, so waiting again here adds
+          # nothing. The capacity check is not redundant and still runs.
+          waitEnabled: '{{ if eq (.Values.clusterPolicyHealthCheck | toString) "true" }}false{{ else }}true{{ end }}'
+      outputs:
+        - name: gpucount
+          fromResource:
+            apiVersion: v1
+            kind: ConfigMap
+            namespace: gpu-stack
+            name: gpu-stack-contract
+            jsonPath: '{.data.observedCount}'
+        - name: gpupool
+          fromResource:
+            apiVersion: v1
+            kind: ConfigMap
+            namespace: gpu-stack
+            name: gpu-stack-contract
+            jsonPath: '{.data.gpuPool}'
+        - name: dcgmhost
+          fromResource:
+            apiVersion: v1
+            kind: ConfigMap
+            namespace: gpu-stack
+            name: gpu-stack-contract
+            jsonPath: '{.data.dcgmHost}'
+        - name: dcgmport
+          fromResource:
+            apiVersion: v1
+            kind: ConfigMap
+            namespace: gpu-stack
+            name: gpu-stack-contract
+            jsonPath: '{.data.dcgmPort}'
+    # Runs alongside nvsentinel: both need only the gate to have passed. The sample
+    # occupies one GPU for the few seconds it takes, and proves the GPU computes rather
+    # than only that the scheduler advertised it.
+    - name: gpu-smoke-test
+      dependsOn:
+        - gpuready
+      timeout: 15m0s
+      argoCDApplication:
+        templateRef:
+          name: demo-gpu-smoke-test
+        parameters:
+          project: '{{ .Values.argoProject }}'
+          gpuPool: '{{ .Outputs.gpuready.gpupool }}'
+    - name: nvsentinel
+      dependsOn:
+        - gpuready
         - cert-manager
       timeout: 20m0s
       argoCDApplication:
@@ -64,20 +169,9 @@ spec:
           name: demo-nvsentinel
         parameters:
           cpuNodePool: '{{ .Values.cpuNodePool }}'
-          version: "{{ .Values.nvsentinelVersion }}"
-          imageTag: "{{ .Values.nvsentinelVersion }}"
-          project: "{{ .Values.argoProject }}"
-          destinationNamespace: nvsentinel
-          dcgmEndpoint: nvidia-dcgm.gpu-operator.svc
-          dcgmPort: "5555"
-          assumeDriverInstalled: "{{ .Values.driverPreinstalled }}"
-          enableGpuHealthMonitor: "true"
-          enableSyslogHealthMonitor: "true"
-          dryRun: "true"
-          enableFaultQuarantine: "false"
-          enableNodeDrainer: "false"
-          enableFaultRemediation: "false"
-          enableJanitor: "false"
-          enableMongodbStore: "false"
-          enableHealthEventsAnalyzer: "false"
-          enablePodMonitor: "false"
+          version: '{{ .Values.nvsentinelVersion }}'
+          project: '{{ .Values.argoProject }}'
+          driverPreinstalled: '{{ .Values.driverPreinstalled | toString }}'
+          # Read from the contract the gate published rather than hard-coded here.
+          dcgmHost: '{{ .Outputs.gpuready.dcgmhost }}'
+          dcgmPort: '{{ .Outputs.gpuready.dcgmport }}'

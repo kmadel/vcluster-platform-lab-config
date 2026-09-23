@@ -5,7 +5,7 @@ kind: ArgoCDApplicationTemplate
 metadata:
   name: demo-nvsentinel
 spec:
-  displayName: Demo NVSentinel
+  displayName: Demo - NVSentinel
   owner:
     team: loft-admins
   parameters:
@@ -29,6 +29,16 @@ spec:
       label: NVIDIA Driver Preinstalled
       type: boolean
       defaultValue: 'false'
+    - variable: dcgmHost
+      label: DCGM Service Host
+      description: Supplied by the gpuready gate's contract when this template runs inside the demo-gpu Stack.
+        The default applies when it is deployed on its own.
+      type: string
+      defaultValue: nvidia-dcgm.gpu-operator.svc
+    - variable: dcgmPort
+      label: DCGM Service Port
+      type: string
+      defaultValue: '5555'
   template:
     spec:
       destination:
@@ -48,8 +58,9 @@ spec:
               dcgm:
                 enabled: true
                 service:
-                  endpoint: nvidia-dcgm.gpu-operator.svc
-                  port: 5555
+                  # default guards against an empty value if this runs outside the Stack.
+                  endpoint: {{ .Values.dcgmHost | default "nvidia-dcgm.gpu-operator.svc" | quote }}
+                  port: {{ .Values.dcgmPort | default "5555" }}
               gpuHealthMonitor:
                 enabled: true
               syslogHealthMonitor:
