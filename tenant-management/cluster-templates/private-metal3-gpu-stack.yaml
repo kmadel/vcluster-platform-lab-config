@@ -44,7 +44,7 @@ spec:
         installation instead of installing its own.
       type: boolean
       defaultValue: "false"
-      section: GPU Operator
+      section: NVSentinel
     - variable: clusterPolicyHealthCheck
       label: Argo CD Has A ClusterPolicy Health Check
       description: Enable when this Argo CD instance defines a custom Lua health check for nvidia.com
