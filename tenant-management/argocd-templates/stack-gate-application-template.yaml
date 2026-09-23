@@ -55,7 +55,6 @@ spec:
       label: Resource Namespace
       description: Leave empty for a cluster-scoped resource.
       type: string
-      defaultValue: ''
       section: Wait
     - variable: waitCondition
       label: Wait Condition
