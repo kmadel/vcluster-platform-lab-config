@@ -99,6 +99,37 @@ spec:
                       values:
                         - large
               # Inherit OS image, SSH keys, and network configuration from the provider.
+          joinNode:
+            containerd:
+              enabled: true
+              registry:
+                configPath: /etc/containerd/certs.d
+                mirrors:
+                  registry.k8s.io:
+                    hosts:
+                      - server: http://192.168.50.61:5000
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  quay.io:
+                    hosts:
+                      - server: http://192.168.50.61:5001
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  nvcr.io:
+                    hosts:
+                      - server: http://192.168.50.61:5002
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  ghcr.io:
+                    hosts:
+                      - server: http://192.168.50.61:5003
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  docker.io:
+                    hosts:
+                      - server: http://192.168.50.61:5004
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
 
         controlPlane:
           backingStore:
