@@ -36,8 +36,8 @@ spec:
     - variable: driverPreinstalled
       label: NVIDIA Driver Preinstalled
       type: boolean
-      defaultValue: "false"
-      section: GPU Operator
+      defaultValue: "true"
+      section: NVIDIA GPU Operator
     - variable: certManagerPreinstalled
       label: cert-manager Already Installed
       description: Enable when the tenant cluster already runs cert-manager. The Stack then verifies that
@@ -63,7 +63,7 @@ spec:
       label: GPU Operator Version
       type: string
       defaultValue: v26.3.3
-      section: GPU Operator
+      section: NVIDIA GPU Operator
     - variable: nvsentinelVersion
       label: NVSentinel Chart and Image Version
       type: string
