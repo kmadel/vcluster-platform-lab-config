@@ -93,7 +93,7 @@ spec:
       label: Gate Image Repository
       type: string
       required: true
-      defaultValue: ghcr.io/loft-demos/ce-demo-nvidia-gpu-operator-stack/stack-gate
+      defaultValue: ghcr.io/loft-demos/stack-gate
       section: Source
     - variable: imageTag
       label: Gate Image Tag

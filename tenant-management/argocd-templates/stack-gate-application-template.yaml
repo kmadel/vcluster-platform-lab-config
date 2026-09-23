@@ -55,6 +55,7 @@ spec:
       label: Resource Namespace
       description: Leave empty for a cluster-scoped resource.
       type: string
+      defaultValue: ''
       section: Wait
     - variable: waitCondition
       label: Wait Condition
@@ -115,22 +116,13 @@ spec:
       type: string
       defaultValue: gpu-stack-contract
       section: Contract
-    - variable: gpuPool
-      label: GPU Pool Label Value
-      description: Recorded in the contract so consumers do not hard-code it.
-      type: string
-      defaultValue: gpu-compute
-      section: Contract
-    - variable: dcgmHost
-      label: DCGM Service Host
-      description: Recorded in the contract for NVSentinel and any other DCGM consumer.
-      type: string
-      defaultValue: nvidia-dcgm.gpu-operator.svc
-      section: Contract
-    - variable: dcgmPort
-      label: DCGM Service Port
-      type: string
-      defaultValue: '5555'
+    - variable: contractData
+      label: Contract Data
+      description: YAML key/value pairs written into the contract ConfigMap alongside the ready, observedCount,
+        resourceName and verifiedAt keys the gate always writes. Leave empty to publish only those. The caller
+        supplies whatever its consumers need, so this template stays independent of any particular workload.
+      type: multiline
+      defaultValue: ''
       section: Contract
     - variable: repoURL
       label: Chart Repository URL
@@ -155,7 +147,7 @@ spec:
       label: Gate Image Repository
       type: string
       required: true
-      defaultValue: ghcr.io/loft-demos/ce-demo-nvidia-gpu-operator-stack/stack-gate
+      defaultValue: ghcr.io/loft-demos/stack-gate
       section: Source
     - variable: imageTag
       label: Gate Image Tag
@@ -190,14 +182,7 @@ spec:
               nodeSelector: {{ .Values.capacityNodeSelector | quote }}
             contract:
               name: {{ .Values.contractName | quote }}
-              data:
-                {{- if .Values.gpuPool }}
-                gpuPool: {{ .Values.gpuPool | quote }}
-                {{- end }}
-                {{- if .Values.dcgmHost }}
-                dcgmHost: {{ .Values.dcgmHost | quote }}
-                dcgmPort: {{ .Values.dcgmPort | quote }}
-                {{- end }}
+              data:{{ .Values.contractData | nindent 16 }}
             job:
               nodeSelector:
                 kubernetes.io/os: linux
