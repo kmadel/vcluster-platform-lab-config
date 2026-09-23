@@ -1,12 +1,10 @@
 apiVersion: management.loft.sh/v1
 kind: VirtualClusterTemplate
 metadata:
-  name: private-nodes-metal3-static-gpu-stack
-  annotations:
-    vcluster.com/template-icon: gpu.svg
+  name: demo-static-gpu
 spec:
-  displayName: Private Nodes — Metal3 Static with NVIDIA GPU Stack
-  description: Fixed-size Metal3 GPU pool with NVIDIA GPU Operator and NVSentinel delivered by a Stack.
+  displayName: Demo - Static GPU Nodes
+  description: Fixed-size Metal3 GPU pool with GPU Operator and NVSentinel delivered by a Stack.
   owner:
     team: loft-admins
   parameters:
@@ -20,22 +18,55 @@ spec:
         - v1.36.4
         - v1.37.0
       defaultValue: v1.36.4
+      section: Control Plane
+    - variable: cpuNodePool
+      label: CPU Service Pool Label
+      description: Value of workload.example.com/pool on CPU service workers.
+      type: string
+      required: true
+      defaultValue: cpu-services
+      section: Control Plane
     - variable: argoProject
       label: Argo CD Project
       type: string
       defaultValue: default
+      section: Argo CD
     - variable: driverPreinstalled
       label: NVIDIA Driver Preinstalled
       type: boolean
       defaultValue: "false"
+      section: GPU Operator
+    - variable: certManagerPreinstalled
+      label: cert-manager Already Installed
+      description: Enable when the tenant cluster already runs cert-manager. The Stack then verifies that
+        installation instead of installing its own.
+      type: boolean
+      defaultValue: "false"
+      section: GPU Operator
+    - variable: clusterPolicyHealthCheck
+      label: Argo CD Has A ClusterPolicy Health Check
+      description: Enable when this Argo CD instance defines a custom Lua health check for nvidia.com
+        ClusterPolicy. The gpuready gate then skips its own ClusterPolicy wait.
+      type: boolean
+      defaultValue: "false"
+      section: Argo CD
+    - variable: minGPUs
+      label: Minimum Allocatable GPUs
+      description: How many GPUs the scheduler must advertise before the gpuready gate passes.
+      type: number
+      required: true
+      defaultValue: "1"
+      section: Control Plane
     - variable: gpuOperatorVersion
       label: GPU Operator Version
       type: string
       defaultValue: v26.3.3
+      section: GPU Operator
     - variable: nvsentinelVersion
       label: NVSentinel Chart and Image Version
       type: string
       defaultValue: v1.13.0
+      section: NVSentinel
   template:
     pro:
       enabled: true
@@ -43,7 +74,7 @@ spec:
       chart:
         name: vcluster
         repo: https://charts.loft.sh
-        version: "0.37.1"
+        version: "0.37.2"
       values: |-
         privateNodes:
           enabled: true
@@ -63,9 +94,9 @@ spec:
                       values:
                         - xlarge-gpu
               # Inherit OS image, SSH keys, and network configuration from the provider.
-            - provider: metal3-us-va-blacksburg-dc1
+            - provider: kubevirt-us-va-blacksburg-dc1
               static:
-                - name: cpu-services
+                - name: metal3-us-va-blacksburg-dc1
                   profile: cpu-services
                   quantity: 1
                   nodeTypeSelector:
@@ -98,12 +129,15 @@ spec:
               enabled: true
           stacks:
             - name: gpu
-              displayName: NVIDIA GPU Stack
+              displayName: Demo - GPU Stack
               templateRef:
-                name: nvidia-gpu-stack
+                name: demo-gpu
               parameters:
-                cpuNodePool: 'cpu-services'
+                cpuNodePool: {{ .Values.cpuNodePool | quote }}
                 argoProject: {{ .Values.argoProject | quote }}
                 driverPreinstalled: {{ .Values.driverPreinstalled | toString | quote }}
+                certManagerPreinstalled: {{ .Values.certManagerPreinstalled | toString | quote }}
+                minGPUs: {{ .Values.minGPUs | toString | quote }}
+                clusterPolicyHealthCheck: {{ .Values.clusterPolicyHealthCheck | toString | quote }}
                 gpuOperatorVersion: {{ .Values.gpuOperatorVersion | quote }}
                 nvsentinelVersion: {{ .Values.nvsentinelVersion | quote }}
