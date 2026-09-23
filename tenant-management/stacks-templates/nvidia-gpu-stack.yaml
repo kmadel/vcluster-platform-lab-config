@@ -116,6 +116,12 @@ spec:
           cpuNodePool: '{{ .Values.cpuNodePool }}'
           project: '{{ .Values.argoProject }}'
           capacityMin: '{{ .Values.minGPUs }}'
+          # The gate template is workload-agnostic; the GPU keys belong here, with the
+          # Stack that publishes them.
+          contractData: |
+            gpuPool: gpu-compute
+            dcgmHost: nvidia-dcgm.gpu-operator.svc
+            dcgmPort: "5555"
           # Off by default. Allocatable GPU capacity is the stronger signal and is checked
           # regardless; ClusterPolicy only adds a wait on operands, such as dcgm-exporter,
           # that nothing downstream depends on.
@@ -149,6 +155,29 @@ spec:
             namespace: gpu-stack
             name: gpu-stack-contract
             jsonPath: '{.data.dcgmPort}'
+    # NVSentinel dials the standalone DCGM host engine, and the GPU Operator creates
+    # dcgm-exporter and nvidia-dcgm at the same instant with nothing ordering them. The
+    # exporter loses that race on a cold start and reports GpuDcgmConnectivityFailure.
+    # This gate holds nvsentinel until the host engine is actually serving. It publishes
+    # no contract and gates on no capacity: it is a wait, nothing else.
+    - name: dcgmready
+      dependsOn:
+        - gpu-operator
+      timeout: 15m0s
+      argoCDApplication:
+        templateRef:
+          name: demo-stack-gate
+        parameters:
+          project: '{{ .Values.argoProject }}'
+          cpuNodePool: '{{ .Values.cpuNodePool }}'
+          releaseName: dcgm-ready
+          waitResource: daemonset/nvidia-dcgm
+          waitNamespace: gpu-operator
+          waitCondition: 'jsonpath={.status.numberReady}=1'
+          watchAPIGroup: apps
+          watchResources: daemonsets
+          capacityMin: '0'
+          contractName: ''
     # Runs alongside nvsentinel: both need only the gate to have passed. The sample
     # occupies one GPU for the few seconds it takes, and proves the GPU computes rather
     # than only that the scheduler advertised it.
@@ -165,6 +194,7 @@ spec:
     - name: nvsentinel
       dependsOn:
         - gpuready
+        - dcgmready
         - cert-manager
       timeout: 20m0s
       argoCDApplication:
