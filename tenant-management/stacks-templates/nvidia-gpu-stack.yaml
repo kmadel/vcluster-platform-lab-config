@@ -6,6 +6,8 @@ spec:
   displayName: Demo - NVIDIA GPU Stack
   description: NVIDIA GPU Operator and NVSentinel on GPU workers, with cert-manager and stack controllers on CPU
     service workers, gated on GPUs the scheduler can actually see.
+  # NVIDIA's own NGC catalog logo for the GPU Operator, the icon in its Chart.yaml.
+  icon: https://assets.nvidiagrid.net/ngc/logos/GPUoperator.png
   owner:
     team: loft-admins
   parameters:
