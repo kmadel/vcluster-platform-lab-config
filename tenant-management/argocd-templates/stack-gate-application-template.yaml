@@ -121,7 +121,6 @@ spec:
         resourceName and verifiedAt keys the gate always writes. Leave empty to publish only those. The caller
         supplies whatever its consumers need, so this template stays independent of any particular workload.
       type: multiline
-      defaultValue: ''
       section: Contract
     - variable: repoURL
       label: Chart Repository URL
