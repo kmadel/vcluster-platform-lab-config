@@ -97,7 +97,7 @@ spec:
                     - property: vcluster.com/profile
                       operator: In
                       values:
-                        - small
+                        - medium
               # Inherit OS image, SSH keys, and network configuration from the provider.
 
         controlPlane:
