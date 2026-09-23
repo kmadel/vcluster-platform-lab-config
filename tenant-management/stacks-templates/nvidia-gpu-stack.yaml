@@ -36,11 +36,12 @@ spec:
         that installation instead of installing its own.
       type: boolean
       defaultValue: 'false'
-    - variable: clusterPolicyHealthCheck
-      label: Argo CD Has A ClusterPolicy Health Check
-      description: Enable when this Argo CD instance defines a custom Lua health check for nvidia.com
-        ClusterPolicy. The gpuready gate then skips its own ClusterPolicy wait and only verifies allocatable
-        GPU capacity, which no ClusterPolicy health check covers.
+    - variable: waitForClusterPolicy
+      label: Gate On ClusterPolicy As Well As GPU Capacity
+      description: Off by default. The gpuready gate verifies allocatable GPU capacity, which is the signal that
+        actually decides whether a GPU pod can be scheduled. ClusterPolicy aggregates every GPU Operator operand,
+        including dcgm-exporter, so gating on it makes the Stack wait on components no downstream task needs.
+        Enable it only if you want the Stack to hold until the whole operand set is healthy.
       type: boolean
       defaultValue: 'false'
     - variable: minGPUs
@@ -115,10 +116,10 @@ spec:
           cpuNodePool: '{{ .Values.cpuNodePool }}'
           project: '{{ .Values.argoProject }}'
           capacityMin: '{{ .Values.minGPUs }}'
-          # An Argo CD instance with a Lua health check for ClusterPolicy already holds
-          # gpu-operator Progressing until the policy is ready, so waiting again here adds
-          # nothing. The capacity check is not redundant and still runs.
-          waitEnabled: '{{ if eq (.Values.clusterPolicyHealthCheck | toString) "true" }}false{{ else }}true{{ end }}'
+          # Off by default. Allocatable GPU capacity is the stronger signal and is checked
+          # regardless; ClusterPolicy only adds a wait on operands, such as dcgm-exporter,
+          # that nothing downstream depends on.
+          waitEnabled: '{{ .Values.waitForClusterPolicy | toString }}'
       outputs:
         - name: gpucount
           fromResource:
