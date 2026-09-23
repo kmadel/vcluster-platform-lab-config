@@ -180,7 +180,9 @@ spec:
               nodeSelector: {{ .Values.capacityNodeSelector | quote }}
             contract:
               name: {{ .Values.contractName | quote }}
-              data:{{ .Values.contractData | nindent 16 }}
+              # default guards the unset case: Platform strips an empty defaultValue, and
+              # nindent errors on an unset value where quote merely renders null.
+              data:{{ .Values.contractData | default "" | nindent 16 }}
             job:
               nodeSelector:
                 kubernetes.io/os: linux
