@@ -16,8 +16,9 @@ spec:
     repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
     targetRevision: main
     path: baseline
-    directory:
-      recurse: false
+    # only use if true
+    # directory:
+    #   recurse: false
   destination:
     server: https://kubernetes.default.svc
     namespace: vcluster-platform
