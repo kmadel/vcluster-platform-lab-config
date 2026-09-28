@@ -31,7 +31,6 @@ spec:
                       operator: In
                       values:
                         - large
-                        - xlarge
           vpn:
             enabled: true
         networking:
