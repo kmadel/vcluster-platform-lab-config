@@ -16,7 +16,7 @@ spec:
     templateRef:
       name: private-node-kubevirt-provider-dynamic
     parameters: |-
-      cpuLimit: '8'
+      cpuLimit: '24'
   connectedCluster:
     name: kubevirt-provider-cluster
     managementNamespace: vcluster-platform
@@ -25,7 +25,7 @@ spec:
     chart:
       # Pin this to the exact vCluster Platform version under test. tokenSecretRef
       # requires a chart version that contains that feature.
-      version: 4.13.0-alpha.12
+      version: 4.13.0-alpha.15
   nodeProvider:
     name: kubevirt-us-va-blacksburg-dc1
     targetNamespace: vcluster-platform

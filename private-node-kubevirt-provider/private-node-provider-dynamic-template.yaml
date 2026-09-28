@@ -58,6 +58,7 @@ spec:
         - '8'
         - '12'
         - '16'
+        - '24'
       defaultValue: '8'
   access:
     - verbs: [get]
