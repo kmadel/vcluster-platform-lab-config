@@ -93,4 +93,4 @@ spec:
           nodeTypes:
             - name: kvm-small
               displayName: KVM VM (2 CPU, 2 GiB)
-              maxCapacity: 8
+              maxCapacity: 4
