@@ -24,7 +24,7 @@ spec:
                     - property: vcluster.com/profile
                       operator: In
                       values:
-                        - xlarge
+                        - large
           vpn:
             enabled: true
         networking:
