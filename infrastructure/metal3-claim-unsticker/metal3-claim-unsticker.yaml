@@ -1,0 +1,125 @@
+# Temporary workaround for a Metal3 provider bug (4.13.0-alpha.13+): when two
+# NodeClaims for the same NodeProvider are claimed together, the second one's
+# claim Update can hit a 409 while the controller still persists the
+# metal3.vcluster.com/claimed-node annotation. The provider then waits forever
+# on a host that stays `available` and is never provisioned.
+#
+# Every minute this finds NodeClaims that have carried the annotation for more
+# than GRACE seconds without being provisioned, whose Machine mirror is still
+# `Available`, and removes the annotation so the provider claims again.
+# Delete this directory once the upstream fix ships.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: metal3-claim-unsticker
+  namespace: vcluster-platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: metal3-claim-unsticker
+rules:
+  - apiGroups: ["storage.loft.sh"]
+    resources: ["nodeclaims"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["storage.loft.sh"]
+    resources: ["machines"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: metal3-claim-unsticker
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: metal3-claim-unsticker
+subjects:
+  - kind: ServiceAccount
+    name: metal3-claim-unsticker
+    namespace: vcluster-platform
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metal3-claim-unsticker
+  namespace: vcluster-platform
+data:
+  unstick.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    ANNOTATION="metal3.vcluster.com/claimed-node"
+
+    kubectl get nodeclaims.storage.loft.sh -A -o json | jq -r \
+      --arg a "$ANNOTATION" --argjson grace "${GRACE:-120}" '
+      .items[]
+      | select(.metadata.deletionTimestamp == null)
+      | select(.metadata.annotations[$a] // "" | length > 0)
+      | select(([.status.conditions[]? | select(.type == "Provisioned" and .status == "False")] | length) > 0)
+      | select((now - ([.status.conditions[] | select(.type == "Provisioned")][0].lastTransitionTime | fromdateiso8601)) > $grace)
+      | [.metadata.namespace, .metadata.name, .spec.providerRef, .metadata.annotations[$a]] | @tsv' |
+    while IFS=$'\t' read -r ns claim provider host; do
+      phase="$(kubectl get machines.storage.loft.sh "${provider}.${host}" -o jsonpath='{.status.phase}' 2>/dev/null || true)"
+      if [ "$phase" != "Available" ]; then
+        echo "ok     ${ns}/${claim} -> ${host} (machine ${phase:-missing})"
+        continue
+      fi
+      echo "STUCK  ${ns}/${claim} -> ${host}: machine still Available, removing ${ANNOTATION}"
+      kubectl -n "$ns" annotate nodeclaims.storage.loft.sh "$claim" "${ANNOTATION}-"
+    done
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: metal3-claim-unsticker
+  namespace: vcluster-platform
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 50
+      ttlSecondsAfterFinished: 600
+      template:
+        spec:
+          serviceAccountName: metal3-claim-unsticker
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: unstick
+              image: alpine/k8s:1.34.1
+              command: ["/bin/bash", "/scripts/unstick.sh"]
+              env:
+                - name: GRACE
+                  value: "120"
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: scripts
+              configMap:
+                name: metal3-claim-unsticker
+            - name: tmp
+              emptyDir: {}
