@@ -81,7 +81,9 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
-      activeDeadlineSeconds: 50
+      # Covers a first pull of the ~320 MB image on a new node (about 55s);
+      # concurrencyPolicy Forbid keeps runs from overlapping meanwhile.
+      activeDeadlineSeconds: 300
       ttlSecondsAfterFinished: 600
       template:
         spec:
