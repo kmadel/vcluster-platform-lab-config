@@ -49,11 +49,16 @@ data:
     #!/bin/bash
     set -euo pipefail
     ANNOTATION="metal3.vcluster.com/claimed-node"
+    # Unsticking is only safe once per claim: a second removal, after the retry
+    # did provision the host (for example on a lagging Machine mirror), orphans
+    # that host, and DestroyNode later skips resetting it.
+    DONE="demo.vcluster.com/claim-unstuck"
 
     kubectl get nodeclaims.storage.loft.sh -A -o json | jq -r \
-      --arg a "$ANNOTATION" --argjson grace "${GRACE:-120}" '
+      --arg a "$ANNOTATION" --arg done "$DONE" --argjson grace "${GRACE:-120}" '
       .items[]
       | select(.metadata.deletionTimestamp == null)
+      | select(.metadata.annotations[$done] == null)
       | select(.metadata.annotations[$a] // "" | length > 0)
       | select(([.status.conditions[]? | select(.type == "Provisioned" and .status == "False")] | length) > 0)
       | select((now - ([.status.conditions[] | select(.type == "Provisioned")][0].lastTransitionTime | fromdateiso8601)) > $grace)
@@ -65,7 +70,7 @@ data:
         continue
       fi
       echo "STUCK  ${ns}/${claim} -> ${host}: machine still Available, removing ${ANNOTATION}"
-      kubectl -n "$ns" annotate nodeclaims.storage.loft.sh "$claim" "${ANNOTATION}-"
+      kubectl -n "$ns" annotate nodeclaims.storage.loft.sh "$claim" "${ANNOTATION}-" "${DONE}=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     done
 ---
 apiVersion: batch/v1
