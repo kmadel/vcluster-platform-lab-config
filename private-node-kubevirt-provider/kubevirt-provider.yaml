@@ -39,6 +39,9 @@ spec:
           # The controller overwrites clusterRef.
           clusterRef: {}
           deploy:
+            vClusterDeviceOperator:
+              enabled: true
+              version: 0.2.
             kubevirt:
               enabled: true
               helmValues: |-

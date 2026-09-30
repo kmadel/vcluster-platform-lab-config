@@ -184,6 +184,7 @@ spec:
       - name: rack-a-large-pool
         metadata:
           annotations:
+            # for kubevirt resources below - skips any NodeType that advertises an extended resource
             nodetype.loft.sh/allow-unneeded-special-resources: "true"
         resources:
           cpu: "4"
