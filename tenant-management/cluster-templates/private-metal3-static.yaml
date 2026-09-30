@@ -4,6 +4,8 @@ metadata:
   name: private-nodes-metal3-static
   annotations:
     vcluster.com/template-icon: auto-node.svg
+  labels:
+    demo.vcluster.com/shared: "true"
 spec:
   displayName: Private Nodes — Metal3 Static AutoNodes
   description: |
@@ -124,7 +126,10 @@ spec:
         integrations:
           argoCD:
             enabled: true
-            connector: demo-lab
+            # Tenant projects are "<tenant>--<name>": use that tenant's connector
+            # (demo-lab-<tenant>, lent to it with tenant.vcluster.com/exclusive-to).
+            # Platform projects use the shared demo-lab.
+            connector: '{{ if contains "--" .Values.loft.project }}demo-lab-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}demo-lab{{ end }}'
         {{ if eq .Values.metallbEnabled "true" }}
         deploy:
           metallb:
