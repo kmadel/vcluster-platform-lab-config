@@ -110,3 +110,21 @@ spec:
                   # label; the scheduler uses the capacity-type property. Label values
                   # can't contain commas, so this is just "reserved".
                   kubevirt.vcluster.com/capacity-type: reserved
+            - name: kvm-small-reserved
+              displayName: KVM VM (2 vCPU, 1 CPU request, 2 GiB) reserved
+              maxCapacity: 4
+              properties:
+                # reserved only; the controller doesn't overwrite a type's own setting
+                kubevirt.vcluster.com/capacity-type: reserved
+              metadata:
+                labels:
+                  topology.kubernetes.io/region: us-va-blacksburg-dc1
+                  kubevirt.vcluster.com/capacity-type: reserved   # UI-only, see bug notes
+              mergeVirtualMachineTemplate:
+                spec:
+                  template:
+                    spec:
+                      domain:
+                        resources:
+                          requests:
+                            cpu: "1"

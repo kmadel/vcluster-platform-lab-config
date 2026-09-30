@@ -29,6 +29,7 @@ spec:
       byName:
         - nico.cpu-small                            
         - kubevirt-us-va-blacksburg-dc1.kvm-small
+        - kubevirt-us-va-blacksburg-dc1.kvm-small-reserved
     quota:
       byType:
         nico.cpu-small: "1"

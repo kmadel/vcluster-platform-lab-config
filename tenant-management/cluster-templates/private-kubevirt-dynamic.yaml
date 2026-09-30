@@ -15,7 +15,7 @@ spec:
     pro: {}
     helmRelease:
       chart:
-        version: 0.37.1
+        version: 0.37.2
       values: |
         privateNodes:
           enabled: true
@@ -25,6 +25,9 @@ spec:
             - provider: kubevirt-us-va-blacksburg-dc1
               dynamic:
                 - name: vm-dynamic-node-pool-1
+                  nodeTypeSelector:
+                    - property: vcluster.com/node-type
+                      value: '{{ .Values.nodeType }}'
                   limits:
                     cpu: '{{ .Values.cpuLimit }}'
         networking:
@@ -52,6 +55,16 @@ spec:
     spaceTemplate:
       metadata: {}
   parameters:
+    - variable: nodeType
+      label: VM Node Type
+      description: |
+        kvm-small runs on shared hosts and works for every project. kvm-small-reserved
+        runs only on bare metal your tenant provisioned for VMs, so it requires a tenant
+        project with a reserved host.
+      options:
+        - kvm-small
+        - kvm-small-reserved
+      defaultValue: kvm-small
     - variable: kubernetesVersion
       label: Kubernetes Version
       description: |
@@ -67,6 +80,7 @@ spec:
       description: |
         Maximum CPUs that can be provisioned by this node pool.
       options:
+        - '1'
         - '2'
         - '4'
         - '6'
