@@ -33,7 +33,7 @@ spec:
         # exposes the Metal3 provider to acme for provision-for-VMs;
         # quota 0 keeps acme from using the pool for regular nodes
         - metal3-us-va-blacksburg-dc1.rack-a-small-pool
-        - metal3-us-va-blacksburg-dc1.rack-b-medium-pool
+        - metal3-us-va-blacksburg-dc1.rack-a-medium-pool
     quota:
       byType:
         nico.cpu-small: "1"
