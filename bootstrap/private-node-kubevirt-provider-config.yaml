@@ -17,8 +17,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: vcluster-platform
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: false
+    # automated:
+    #   prune: true
+    #   selfHeal: false
     syncOptions:
       - ServerSideApply=true
