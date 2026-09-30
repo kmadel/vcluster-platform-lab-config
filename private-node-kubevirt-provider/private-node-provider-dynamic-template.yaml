@@ -32,10 +32,20 @@ spec:
                       values:
                         - large
           vpn:
-            enabled: true
+            enabled: false
         networking:
           podCIDR: 10.64.0.0/16
           serviceCIDR: 10.128.0.0/16
+        controlPlane:
+          endpoint: 192.168.50.20:443
+          proxy:
+            extraSANs:
+              - 192.168.50.20
+          service:
+            spec:
+              type: LoadBalancer
+            annotations:
+              metallb.io/loadBalancerIPs: 192.168.50.20
         controlPlane:
           backingStore:
             etcd:
