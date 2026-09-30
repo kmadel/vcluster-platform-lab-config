@@ -37,6 +37,10 @@ spec:
           podCIDR: 10.64.0.0/16
           serviceCIDR: 10.128.0.0/16
         controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
           endpoint: 192.168.50.20:443
           proxy:
             extraSANs:
@@ -46,11 +50,6 @@ spec:
               type: LoadBalancer
             annotations:
               metallb.io/loadBalancerIPs: 192.168.50.20
-        controlPlane:
-          backingStore:
-            etcd:
-              embedded:
-                enabled: true
         integrations:
           argoCD:
             enabled: true
