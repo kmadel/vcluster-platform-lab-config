@@ -113,7 +113,7 @@ spec:
         metadata: {}
         resources:
           cpu: "8"
-          memory: 24Gi
+          memory: 16Gi
           nvidia.com/gpu: "1"
         bareMetalHosts:
           selector:
@@ -128,7 +128,7 @@ spec:
           vcluster.com/accelerator: rtx-2000-ada
           vcluster.com/az: us-va-blacksburg-dc1
           vcluster.com/cpu: "8"
-          vcluster.com/memory: 24Gi
+          vcluster.com/memory: 16Gi
           vcluster.com/profile: xlarge-gpu
           vcluster.com/rack: rack-c
           vcluster.com/row: row-1
