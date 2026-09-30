@@ -30,10 +30,14 @@ spec:
         - nico.cpu-small                            
         - kubevirt-us-va-blacksburg-dc1.kvm-small
         - kubevirt-us-va-blacksburg-dc1.kvm-small-reserved
+        # exposes the Metal3 provider to acme for provision-for-VMs;
+        # quota 0 keeps acme from using the pool for regular nodes
+        - metal3-us-va-blacksburg-dc1.rack-a-small-pool
     quota:
       byType:
         nico.cpu-small: "1"
         kubevirt-us-va-blacksburg-dc1.kvm-small: "1"  # per-tenant cap on VMs
+        metal3-us-va-blacksburg-dc1.rack-a-small-pool: "0"
   templates:
     enabled: true
     allow:
