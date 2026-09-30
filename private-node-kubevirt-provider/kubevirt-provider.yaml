@@ -25,7 +25,7 @@ spec:
     chart:
       # Pin this to the exact vCluster Platform version under test. tokenSecretRef
       # requires a chart version that contains that feature.
-      version: 4.13.0-alpha.15
+      version: 4.13.0-alpha.18
   nodeProvider:
     name: kubevirt-us-va-blacksburg-dc1
     targetNamespace: vcluster-platform
