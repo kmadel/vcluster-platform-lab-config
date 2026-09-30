@@ -1,0 +1,12 @@
+apiVersion: management.loft.sh/v1
+kind: OSImage
+metadata:
+  name: ubuntu-noble-bootstrap
+  label:
+    demo.vcluster.com/shared: "true"
+spec:
+  displayName: Ubuntu 24.04 LTS (Bootstrap)
+  properties:
+    metal3.vcluster.com/image-checksum: 240ba0ca47a14081b7a9ead02b7d438ddda88c36a50f886322a411ec44ae1c9e
+    metal3.vcluster.com/image-checksum-type: sha256
+    metal3.vcluster.com/image-url: http://172.22.0.1:9000/ubuntu-noble-bootstrap.img
