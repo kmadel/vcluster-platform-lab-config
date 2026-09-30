@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubevirt-provider-controller
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/loft-demos/charts
+    chart: kubevirt-provider-controller
+    targetRevision: 0.3.0
+    helm:
+      releaseName: kubevirt-provider-controller  # helm list -A
+      # valuesObject: {...}                   # copy from: helm get values <release> -n <ns>
+  destination:
+    server: https://kubernetes.default.svc     # the vCluster Platform management cluster
+    namespace: kubevirt-provider-controller-system
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
