@@ -27,7 +27,9 @@ spec:
     enabled: true
     allow:
       byName:
-        - nico.cpu-small
+        - nico.cpu-small                            
+        - kubevirt-us-va-blacksburg-dc1.kvm-small
     quota:
       byType:
         nico.cpu-small: "1"
+        kubevirt-us-va-blacksburg-dc1.kvm-small: "1"  # per-tenant cap on VMs

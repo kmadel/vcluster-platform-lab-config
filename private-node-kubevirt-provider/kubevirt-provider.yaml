@@ -29,6 +29,12 @@ spec:
   nodeProvider:
     name: kubevirt-us-va-blacksburg-dc1
     targetNamespace: vcluster-platform
+    # Placement for VMs from every NodeType below. on-demand puts VMs on the
+    # provider cluster's shared Auto Nodes, so any granted tenant (acme, globex)
+    # and admin clusters can use this provider. Add "reserved" to also allow
+    # tenant-dedicated hosts added with "Provision Machine for VMs"; Platform
+    # prefers on-demand when both are allowed.
+    capacityTypes: [on-demand]
     template:
       spec:
         displayName: KubeVirt Provider (us-va-blacksburg-dc1)
