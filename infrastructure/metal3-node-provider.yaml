@@ -73,6 +73,7 @@ spec:
       bareMetalHostTemplate:
         metadata:
           labels:
+            topology.kubernetes.io/region: us-va-blacksburg-dc1
             # The one dimension NetBox has no field for. Every other selector
             # label below is derived from the device record by the import.
             demo: vmetal

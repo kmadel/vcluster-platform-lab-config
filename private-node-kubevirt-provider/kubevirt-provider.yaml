@@ -34,7 +34,7 @@ spec:
     # and admin clusters can use this provider. Add "reserved" to also allow
     # tenant-dedicated hosts added with "Provision Machine for VMs"; Platform
     # prefers on-demand when both are allowed.
-    capacityTypes: [on-demand]
+    capacityTypes: [reserved,on-demand]
     template:
       spec:
         displayName: KubeVirt Provider (us-va-blacksburg-dc1)
@@ -103,3 +103,6 @@ spec:
             - name: kvm-small
               displayName: KVM VM (2 CPU, 2 GiB)
               maxCapacity: 4
+              metadata:
+                labels:
+                  topology.kubernetes.io/region: us-va-blacksburg-dc1
