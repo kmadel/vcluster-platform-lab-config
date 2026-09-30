@@ -13,7 +13,7 @@ spec:
     helmRelease:
       chart:
         name: vcluster
-        version: 0.37.1
+        version: 0.37.2
       values: |-
         privateNodes:
           enabled: true
