@@ -9,4 +9,5 @@ metadata:
     cluster-collector.argocd-template-param.fleet.lab.kurtmadel.com/otlpEndpoint: >-
       https://otel.lab.kurtmadel.com
   labels:
+    demo.vcluster.com/shared: "true"
     fleet.lab.kurtmadel.com/baseline: 'true'
