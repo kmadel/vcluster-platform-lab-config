@@ -82,7 +82,6 @@ spec:
       description: |
         Maximum CPUs that can be provisioned by this node pool.
       options:
-        - '1'
         - '2'
         - '4'
         - '6'
