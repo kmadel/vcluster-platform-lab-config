@@ -34,3 +34,8 @@ spec:
       byType:
         nico.cpu-small: "1"
         kubevirt-us-va-blacksburg-dc1.kvm-small: "1"  # per-tenant cap on VMs
+  templates:
+    enabled: true
+    allow:
+      byLabels:
+        demo.vcluster.com/shared: "true"

@@ -2,6 +2,8 @@ apiVersion: management.loft.sh/v1
 kind: VirtualClusterTemplate
 metadata:
   name: private-nodes-kubevirt-dynamic
+  labels:
+    demo.vcluster.com/shared: "true"
 spec:
   displayName: Private Nodes — KubeVirt Dynamic AutoNodes
   description: |
