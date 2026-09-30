@@ -50,7 +50,10 @@ spec:
         integrations:
           argoCD:
             enabled: true
-            connector: demo-lab
+            # Tenant projects are "<tenant>--<name>": use that tenant's connector
+            # (demo-lab-<tenant>, lent with tenant.vcluster.com/exclusive-to).
+            # Platform projects keep the shared demo-lab.
+            connector: '{{ if contains "--" .Values.loft.project }}demo-lab-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}demo-lab{{ end }}'
     accessPoint:
       ingress: {}
     forwardTokenMode: "Off"
