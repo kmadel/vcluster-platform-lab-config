@@ -106,3 +106,7 @@ spec:
               metadata:
                 labels:
                   topology.kubernetes.io/region: us-va-blacksburg-dc1
+                  # UI-only: the provision-for-VMs dialog reads capacity type from a
+                  # label; the scheduler uses the capacity-type property. Label values
+                  # can't contain commas, so this is just "reserved".
+                  kubevirt.vcluster.com/capacity-type: reserved
