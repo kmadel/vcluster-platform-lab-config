@@ -2,7 +2,7 @@ apiVersion: management.loft.sh/v1
 kind: OSImage
 metadata:
   name: ubuntu-noble-bootstrap
-  label:
+  labels:
     demo.vcluster.com/shared: "true"
 spec:
   displayName: Ubuntu 24.04 LTS (Bootstrap)
