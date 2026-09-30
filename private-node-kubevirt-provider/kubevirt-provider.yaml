@@ -41,7 +41,7 @@ spec:
           deploy:
             vClusterDeviceOperator:
               enabled: true
-              version: 0.2.
+              version: 0.2.0
             kubevirt:
               enabled: true
               helmValues: |-
