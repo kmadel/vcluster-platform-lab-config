@@ -7,6 +7,7 @@ spec:
   project: default
   source:
     repoURL: oci://ghcr.io/loft-demos/charts/kubevirt-provider-controller
+    path: .
     targetRevision: 0.3.0
     helm:
       releaseName: kubevirt-provider-controller  # helm list -A
