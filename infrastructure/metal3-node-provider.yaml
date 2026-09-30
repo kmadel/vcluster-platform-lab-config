@@ -182,7 +182,9 @@ spec:
           vcluster.com/row: row-1
 
       - name: rack-a-large-pool
-        metadata: {}
+        metadata:
+          annotations:
+            nodetype.loft.sh/allow-unneeded-special-resources: "true"
         resources:
           cpu: "4"
           memory: 8Gi
@@ -211,7 +213,9 @@ spec:
           vcluster.com/row: row-1
 
       - name: rack-a-xlarge-pool
-        metadata: {}
+        metadata:
+          annotations:
+            nodetype.loft.sh/allow-unneeded-special-resources: "true"
         resources:
           cpu: "8"
           memory: 16Gi
@@ -292,7 +296,9 @@ spec:
           vcluster.com/row: row-1
 
       - name: rack-b-large-pool
-        metadata: {}
+        metadata:
+          annotations:
+            nodetype.loft.sh/allow-unneeded-special-resources: "true"
         resources:
           cpu: "4"
           memory: 8Gi
@@ -321,7 +327,9 @@ spec:
           vcluster.com/row: row-1
 
       - name: rack-b-xlarge-pool
-        metadata: {}
+        metadata:
+          annotations:
+            nodetype.loft.sh/allow-unneeded-special-resources: "true"
         resources:
           cpu: "8"
           memory: 16Gi
