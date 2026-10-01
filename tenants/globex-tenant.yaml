@@ -29,10 +29,12 @@ spec:
       byName:
         - nico.cpu-small                            
         - kubevirt-us-va-blacksburg-dc1.kvm-small
+        - metal3-us-va-blacksburg-dc1.rack-a-small-pool
     quota:
       byType:
         nico.cpu-small: "1"
         kubevirt-us-va-blacksburg-dc1.kvm-small: "2"  # per-tenant cap on VMs
+        metal3-us-va-blacksburg-dc1.rack-b-small-pool: "1"
   templates:
     enabled: true
     allow:
