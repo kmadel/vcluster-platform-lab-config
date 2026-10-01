@@ -2,6 +2,9 @@ apiVersion: management.loft.sh/v1
 kind: OSImage
 metadata:
   name: ubuntu-noble-nvidia-gpu
+  labels:
+    # Tenant osImages selectors match this; provisioning resolves the image as the tenant.
+    demo.vcluster.com/shared: "true"
 spec:
   displayName: "Ubuntu 24.04 LTS (NVIDIA GPU Node)"
   properties:

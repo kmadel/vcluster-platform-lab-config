@@ -82,7 +82,7 @@ spec:
             - provider: metal3-us-va-blacksburg-dc1
               static:
                 - name: gpu
-                  profile: gpu-compute
+                  profile: '{{ if contains "--" .Values.loft.project }}gpu-compute-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}gpu-compute{{ end }}'
                   # This lab has one GPU machine available for private nodes.
                   quantity: 1
                   properties:
@@ -93,7 +93,8 @@ spec:
                       values:
                         - xlarge-gpu
                 - name: cpu
-                  profile: cpu-services
+                  profile: '{{ if contains "--" .Values.loft.project }}cpu-services-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}cpu-services{{ end }}'
+
                   quantity: 1
                   nodeTypeSelector:
                     - property: vcluster.com/profile
