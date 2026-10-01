@@ -104,7 +104,7 @@ spec:
               displayName: KVM VM (2 CPU, 2 GiB)
               maxCapacity: 4
               metadata:
-                labels::
+                labels:
                   tenants.demo.vcluster.com/globex: "true"
                   tenants.demo.vcluster.com/acme: "true"
                   topology.kubernetes.io/region: us-va-blacksburg-dc1
