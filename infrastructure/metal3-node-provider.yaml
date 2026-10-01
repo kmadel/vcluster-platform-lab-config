@@ -110,7 +110,9 @@ spec:
       # never schedule. No device-type key, so it keeps working whether the
       # inventory calls that profile `xlarge` or `xlarge-gpu`.
       - name: rack-c-xlarge-gpu-pool
-        metadata: {}
+        metadata:
+          labels:
+            tenants.demo.vcluster.com/acme: "true"
         resources:
           cpu: "8"
           memory: 16Gi
@@ -135,7 +137,9 @@ spec:
 
       # ---- rack-a -----------------------------------------------------------
       - name: rack-a-small-pool
-        metadata: {}
+        metadata:
+          labels:
+            tenants.demo.vcluster.com/acme: "true"
         resources:
           cpu: "2"
           memory: 4Gi
@@ -159,7 +163,9 @@ spec:
           vcluster.com/row: row-1
 
       - name: rack-a-medium-pool
-        metadata: {}
+        metadata:
+          labels:
+            tenants.demo.vcluster.com/acme: "true"
         resources:
           cpu: "3"
           memory: 6Gi
