@@ -26,10 +26,8 @@ spec:
   nodeTypes:
     enabled: true
     allow:
-      byName:
-        - nico.cpu-small                            
-        - kubevirt-us-va-blacksburg-dc1.kvm-small
-        - metal3-us-va-blacksburg-dc1.rack-b-small-pool
+      byLabels:
+        tenants.demo.vcluster.com/globex: "true"
     quota:
       byType:
         nico.cpu-small: "1"

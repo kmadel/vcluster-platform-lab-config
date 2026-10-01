@@ -253,7 +253,9 @@ spec:
 
       # ---- rack-b -----------------------------------------------------------
       - name: rack-b-small-pool
-        metadata: {}
+        metadata:
+          labels:
+            tenants.demo.vcluster.com/globex: "true"
         resources:
           cpu: "2"
           memory: 4Gi
@@ -305,6 +307,8 @@ spec:
 
       - name: rack-b-large-pool
         metadata:
+          labels:
+            tenants.demo.vcluster.com/globex: "true"
           annotations:
             nodetype.loft.sh/allow-unneeded-special-resources: "true"
         resources:
@@ -336,6 +340,8 @@ spec:
 
       - name: rack-b-xlarge-pool
         metadata:
+          labels:
+            tenants.demo.vcluster.com/globex: "true"
           annotations:
             nodetype.loft.sh/allow-unneeded-special-resources: "true"
         resources:

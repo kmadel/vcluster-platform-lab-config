@@ -104,7 +104,8 @@ spec:
               displayName: KVM VM (2 CPU, 2 GiB)
               maxCapacity: 4
               metadata:
-                labels:
+                labels::
+                  tenants.demo.vcluster.com/globex: "true"
                   tenants.demo.vcluster.com/acme: "true"
                   topology.kubernetes.io/region: us-va-blacksburg-dc1
                   # UI-only: the provision-for-VMs dialog reads capacity type from a
@@ -119,6 +120,7 @@ spec:
                 kubevirt.vcluster.com/capacity-type: reserved
               metadata:
                 labels:
+                  tenants.demo.vcluster.com/acme: "true"
                   topology.kubernetes.io/region: us-va-blacksburg-dc1
                   kubevirt.vcluster.com/capacity-type: reserved   # UI-only, see bug notes
               mergeVirtualMachineTemplate:
