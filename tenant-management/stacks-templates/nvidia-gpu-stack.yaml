@@ -2,6 +2,8 @@ apiVersion: management.loft.sh/v1
 kind: StackTemplate
 metadata:
   name: demo-gpu
+  labels:
+    demo.vcluster.com/shared: "true"
 spec:
   displayName: Demo - NVIDIA GPU Stack
   description: NVIDIA GPU Operator and NVSentinel on GPU workers, with cert-manager and stack controllers on CPU
