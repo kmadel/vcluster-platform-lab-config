@@ -29,7 +29,7 @@ spec:
       byName:
         - nico.cpu-small                            
         - kubevirt-us-va-blacksburg-dc1.kvm-small
-        - metal3-us-va-blacksburg-dc1.rack-a-small-pool
+        - metal3-us-va-blacksburg-dc1.rack-b-small-pool
     quota:
       byType:
         nico.cpu-small: "1"
