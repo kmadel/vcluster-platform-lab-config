@@ -1,0 +1,13 @@
+apiVersion: management.loft.sh/v1
+kind: NodeProfile
+metadata:
+  name: cpu-services-acme
+  labels:
+    # NodeProfiles have no Tenant capability, so acme's NodeClaims cannot see the
+    # platform's cpu-services. A copy lent to acme (the platform keeps ownership).
+    tenant.vcluster.com/exclusive-to: acme
+spec:
+  displayName: Demo - CPU Services (acme)
+  description: CPU service workers.
+  nodeLabels:
+    workload.example.com/pool: cpu-services

@@ -1,0 +1,17 @@
+apiVersion: management.loft.sh/v1
+kind: NodeProfile
+metadata:
+  name: gpu-compute-acme
+  labels:
+    # NodeProfiles have no Tenant capability, so acme's NodeClaims cannot see the
+    # platform's gpu-compute. A copy lent to acme (the platform keeps ownership).
+    tenant.vcluster.com/exclusive-to: acme
+spec:
+  displayName: Demo - GPU Compute (acme)
+  description: GPU workers reserved for workloads with the NVIDIA GPU toleration.
+  nodeLabels:
+    workload.example.com/pool: gpu-compute
+  taints:
+  - key: nvidia.com/gpu
+    value: 'true'
+    effect: NoSchedule
