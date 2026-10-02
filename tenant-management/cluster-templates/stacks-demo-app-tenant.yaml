@@ -38,12 +38,12 @@ spec:
       chart:
         name: vcluster
         repo: https://charts.loft.sh
-        version: "0.37.1"
+        version: "0.37.2"
       values: |-
         integrations:
           argoCD:
             enabled: true
-            connector: demo-lab
+            connector: connector: '{{ if contains "--" .Values.loft.project }}demo-lab-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}demo-lab{{ end }}'
 
         deploy:
           stacks:

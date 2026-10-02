@@ -17,7 +17,7 @@ spec:
     pro: {}
     helmRelease:
       chart:
-        version: 0.37.1
+        version: 0.37.2
       values: |
         privateNodes:
           enabled: true
@@ -59,7 +59,7 @@ spec:
         integrations:
           argoCD:
             enabled: true
-            connector: demo-lab
+            connector: connector: '{{ if contains "--" .Values.loft.project }}demo-lab-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}demo-lab{{ end }}'
     accessPoint:
       ingress: {}
     forwardTokenMode: "Off"
