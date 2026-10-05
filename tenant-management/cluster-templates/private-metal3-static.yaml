@@ -19,7 +19,7 @@ spec:
     pro: {}
     helmRelease:
       chart:
-        version: 0.37.2
+        version: 0.37.3
       values: |
         privateNodes:
           enabled: true
@@ -139,6 +139,23 @@ spec:
                 - "{{ .Values.metallbAddressRange }}"
               l2Advertisement: true
         {{ end }}
+        {{- if .Values.networkPolicies }}
+        experimental:
+          deploy:
+            vcluster:
+              helm:
+                - chart:
+                    name: kube-network-policies
+                    repo: oci://ghcr.io/loft-demos/charts
+                    version: 0.1.0
+                  release:
+                    name: kube-network-policies
+                    namespace: kube-system
+                  # Add to enforce ClusterNetworkPolicies too:
+                  values: |-
+                    clusterNetworkPolicy:
+                      enabled: true
+        {{- end }}
     accessPoint:
       ingress: {}
     forwardTokenMode: "Off"
@@ -147,16 +164,17 @@ spec:
   parameters:
     - variable: kubernetesVersion
       label: Kubernetes Version
+      section: Control Plane
       description: |
         Control plane Kubernetes version. Updating this value triggers a rolling upgrade of the vCluster control plane while the fixed worker pools remain managed through the NodeClaim lifecycle.
       options:
-        - v1.34.11
-        - v1.35.8
-        - v1.36.4
-        - v1.37.0
-      defaultValue: v1.36.4
+        - v1.34.12
+        - v1.35.9
+        - v1.36.5
+      defaultValue: v1.36.5
     - variable: smallNodeCount
       label: Small Node Count
+      section: Auto Nodes
       description: |
         Desired quantity for the static small-capacity pool. Capacity can come from any rack matched by the optional customer/rack selectors.
       options:
@@ -168,6 +186,7 @@ spec:
       defaultValue: '1'
     - variable: mediumNodeCount
       label: Medium Node Count
+      section: Auto Nodes
       description: |
         Desired quantity for the static medium-capacity pool. The default demo inventory has one managed medium-capacity host.
       options:
@@ -177,6 +196,7 @@ spec:
       defaultValue: '0'
     - variable: largeNodeCount
       label: Large Node Count
+      section: Auto Nodes
       description: |
         Desired quantity for the static large-capacity pool. The default demo inventory has one large-capacity host per rack.
       options:
@@ -186,6 +206,7 @@ spec:
       defaultValue: '0'
     - variable: xlargeNodeCount
       label: Xlarge Node Count
+      section: Auto Nodes
       description: |
         Desired quantity for the static xlarge-capacity pool. The default demo inventory has one xlarge-capacity host per rack.
       options:
@@ -195,10 +216,17 @@ spec:
       defaultValue: '0'
     - variable: rackSelector
       label: Rack Selector
+      section: Auto Nodes
       description: |
         Optional comma-separated rack list such as `rack-a` or `rack-a,rack-b`. Leave empty to allow all racks for the selected customer set.
+    - variable: networkPolicies
+      label: Enforce NetworkPolicies
+      type: boolean
+      section: Add-ons
+      defaultValue: "false"
     - variable: metallbEnabled
       label: Install MetalLB
+      section: Add-ons
       description: |
         Optionally deploy MetalLB into the tenant cluster and create an L2 address pool from the provided address range.
       options:
@@ -207,6 +235,7 @@ spec:
       defaultValue: 'false'
     - variable: metallbAddressRange
       label: MetalLB Address Range
+      section: Add-ons
       description: |
         Address range or CIDR used for the optional MetalLB IPAddressPool, for example `192.168.50.200-192.168.50.210` or `192.168.50.0/24`.
       defaultValue: 192.168.51.14-192.168.51.16

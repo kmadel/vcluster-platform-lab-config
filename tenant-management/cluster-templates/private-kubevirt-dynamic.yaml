@@ -17,7 +17,7 @@ spec:
     pro: {}
     helmRelease:
       chart:
-        version: 0.37.2
+        version: 0.37.3
       values: |
         privateNodes:
           enabled: true
@@ -75,11 +75,10 @@ spec:
       description: |
         Control plane Kubernetes version. Updating this value triggers a rolling upgrade of the vCluster control plane. The bare metal node kubelet is re-provisioned separately via the NodeClaim lifecycle.
       options:
-        - v1.34.11
-        - v1.35.8
-        - v1.36.4
-        - v1.37.0
-      defaultValue: v1.36.4
+        - v1.34.12
+        - v1.35.9
+        - v1.36.5
+      defaultValue: v1.36.5
     - variable: cpuLimit
       label: CPU Limit
       description: |
