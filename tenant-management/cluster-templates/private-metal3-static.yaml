@@ -147,7 +147,7 @@ spec:
                 - chart:
                     name: kube-network-policies
                     repo: oci://ghcr.io/loft-demos/charts
-                    version: 0.1.0
+                    version: 0.0.1
                   release:
                     name: kube-network-policies
                     namespace: kube-system
