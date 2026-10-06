@@ -18,10 +18,13 @@ spec:
       project: default
       source:
         repoURL: oci://docker.io/envoyproxy/gateway-helm
-        targetRevision: v1.2.4
+        targetRevision: v1.8.0
         path: .
         helm:
-          releaseName: envoy-gateway
+          # "eg" is the release name already in use on loft-cluster. The chart's
+          # fullname helper derives resource names from it, so a different name
+          # renders a second parallel install instead of adopting the live one.
+          releaseName: eg
       destination:
         namespace: envoy-gateway-system
       syncPolicy:

@@ -1,0 +1,55 @@
+# vcluster-gitops-watcher.yaml - Layer 1: the watcher that pauses Argo CD for
+# sleeping tenant clusters and wakes them on GitOps intent.
+#
+# A plain Application rather than an ArgoCDApplicationTemplate bound through a
+# FleetProfile, because the watcher is one component per Argo CD instance, not
+# per control plane cluster. It reads VirtualClusterInstances and patches Argo CD
+# Applications and cluster Secrets through a single in-cluster API client, so it
+# only works where Argo CD runs next to vCluster Platform: this cluster. A
+# FleetProfile or extra-apps binding would also tie its creation to every other
+# profile on the Cluster resolving.
+#
+# The platform-token Secret is created out of band and is intentionally NOT in
+# git. It must be a dedicated access key, not the one the platform created for
+# the Argo CD integration: since Platform v4.12.0 that key carries
+# sleepmode.loft.sh/ignore-activity and can never wake a sleeping tenant cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vcluster-gitops-watcher
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: oci://ghcr.io/loft-demos/charts/vcluster-gitops-watcher
+    targetRevision: 2.1.0-rc.1
+    path: .
+    helm:
+      releaseName: vcluster-gitops-watcher
+      valuesObject:
+    watcher:
+      # Exact server URL match for v2 cluster Secrets (instance-ID hash suffix).
+      platformHost: vcp.lab.kurtmadel.com
+      nodeSelector:
+        argocd: "true"
+      # distroless nonroot, pinned numerically. Merged with the chart's
+      # runAsNonRoot and seccompProfile defaults.
+      podSecurityContext:
+        runAsUser: 65532
+        runAsGroup: 65532
+      wake:
+        # Wake for a deploy, then put the tenant cluster back to sleep.
+        default: sync
+        upstreamBase: https://vcp.lab.kurtmadel.com
+        # Short-lived per-tenant-cluster tokens, impersonating this user.
+        accessKey:
+          user: gitops-watcher
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -17,7 +17,10 @@ spec:
       source:
         repoURL: https://charts.jetstack.io
         chart: cert-manager
-        targetRevision: v1.16.2
+        # Matches the release already running on loft-cluster. Do not lower this
+        # below a version a target cluster is already on: Argo CD would apply
+        # older CRD schemas over newer ones.
+        targetRevision: v1.20.2
         helm:
           releaseName: cert-manager
           values: |

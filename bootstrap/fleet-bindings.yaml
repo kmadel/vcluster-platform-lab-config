@@ -14,9 +14,15 @@
 #
 # The chart defaults are already written for this lab (fleet.lab.kurtmadel.com
 # annotations, vcp/otel.lab.kurtmadel.com endpoints), so only the two values that
-# diverge are overridden below. The profiles are pinned in full even where they
+# diverge are overridden below. The profiles below are pinned even where they
 # match the chart: which applications land on which cluster is this environment's
 # policy, and it should not change silently on a chart bump.
+#
+# Note: cluster-collector, fleet-observability-grafana and
+# fleet-observability-prometheus are ArgoCDApplicationTemplates installed by
+# vCluster Platform itself, so they are intentionally absent from baseline/ and
+# tenant-management/. Profiles here reference them by name like any other
+# template; this repo does not define them.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -70,36 +76,6 @@ spec:
                 dependsOn:
                   - envoy-gateway-config
 
-          # The control-plane baseline plus the watcher that pauses Argo CD for
-          # sleeping tenant clusters and wakes them on GitOps intent.
-          vcp-management-cluster-baseline:
-            applications:
-              - name: cert-manager
-              - name: godaddy-webhook
-                dependsOn:
-                  - cert-manager
-              - name: godaddy-clusterissuer
-                dependsOn:
-                  - godaddy-webhook
-              - name: metrics-server
-              - name: metallb
-              - name: metallb-config
-                dependsOn:
-                  - metallb
-              - name: envoy-gateway
-              - name: cert-config
-                dependsOn:
-                  - godaddy-clusterissuer
-              - name: envoy-gateway-config
-                dependsOn:
-                  - envoy-gateway
-                  - metallb-config
-                  - cert-config
-              - name: external-dns
-                dependsOn:
-                  - envoy-gateway-config
-              - name: vcluster-gitops-watcher
-
           # Auto-selected for rendered VCIs with privateNodes.enabled: true.
           # Chart default is "cluster-collector"; this fleet uses the embedded
           # etcd variant in tenant-management/argocd-templates.
@@ -111,6 +87,25 @@ spec:
           tenant-observability-shared-nodes:
             applications:
               - name: shared-node-tenant-collector
+
+          # Selected by loft-cluster. The FleetProfile went missing (most likely
+          # dropped from the Helm values, which deleted it), so the controller
+          # logged `unknown FleetProfile "fleet-observability-platform"` every
+          # pass and froze this cluster's bindings instead of reconciling them.
+          # Reconstructed from the three orphaned bindings in p-platform.
+          # dependsOn is not recovered: it only gates creation of bindings that
+          # do not exist yet, so it is a no-op here but would matter on a rebuild.
+          fleet-observability-platform:
+            applications:
+              - name: cluster-collector
+              - name: fleet-observability-prometheus
+              - name: fleet-observability-grafana
+
+          # Selected by spark-cluster. Was hand-created in p-platform and not
+          # owned by Helm; declared here so this file owns it.
+          fleet-observability-collector:
+            applications:
+              - name: cluster-collector
 
           gpu-nvidia-baseline:
             applications:
