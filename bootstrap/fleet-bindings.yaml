@@ -28,7 +28,7 @@ spec:
   project: default
   source:
     repoURL: oci://ghcr.io/loft-demos/vcluster-fleet-gitops/fleet-bindings
-    targetRevision: 0.6.1
+    targetRevision: 0.6.2
     path: .
     helm:
       releaseName: fleet-bindings
