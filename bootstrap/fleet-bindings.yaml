@@ -1,0 +1,139 @@
+# fleet-bindings.yaml - Layer 1: the fleet binding controller and the FleetProfile
+# policy it reconciles against. Replaces the out-of-band `helm install` of the
+# fleet-bindings chart; this Application is now the owner.
+#
+# Wave 0, and the only app in bootstrap/ above -1, on purpose. The controller
+# consumes what the wave -1 apps produce, so it has to run last:
+#   fleet-clusters     -> the Cluster labels it selects on and the
+#                         fleet.lab.kurtmadel.com/profiles annotations it reads
+#   fleet-baseline     -> the ArgoCDApplicationTemplates the profiles name
+#   tenant-management  -> the collector templates the observability profiles name
+# Bind anything earlier and the generated ArgoCDApplications reference templates
+# that do not exist yet. Raise this above 0 if an app is ever added at wave 0
+# that fleet-bindings depends on.
+#
+# The chart defaults are already written for this lab (fleet.lab.kurtmadel.com
+# annotations, vcp/otel.lab.kurtmadel.com endpoints), so only the two values that
+# diverge are overridden below. The profiles are pinned in full even where they
+# match the chart: which applications land on which cluster is this environment's
+# policy, and it should not change silently on a chart bump.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fleet-bindings
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: oci://ghcr.io/loft-demos/vcluster-fleet-gitops/fleet-bindings
+    targetRevision: 0.6.1
+    path: .
+    helm:
+      releaseName: fleet-bindings
+      valuesObject:
+        # Central policy namespace: FleetProfiles and Cluster-targeted
+        # ArgoCDApplications live here. VCI-targeted ones live in each VCI's
+        # own project namespace.
+        projectNamespace: p-platform
+
+        controller:
+          # Chart default is 30s; this fleet runs a tighter loop.
+          reconcileInterval: 15s
+
+        profiles:
+          control-plane-baseline:
+            applications:
+              - name: cert-manager
+              - name: godaddy-webhook
+                dependsOn:
+                  - cert-manager
+              - name: godaddy-clusterissuer
+                dependsOn:
+                  - godaddy-webhook
+              - name: metrics-server
+              - name: metallb
+              - name: metallb-config
+                dependsOn:
+                  - metallb
+              - name: envoy-gateway
+              - name: cert-config
+                dependsOn:
+                  - godaddy-clusterissuer
+              - name: envoy-gateway-config
+                dependsOn:
+                  - envoy-gateway
+                  - metallb-config
+                  - cert-config
+              - name: external-dns
+                dependsOn:
+                  - envoy-gateway-config
+
+          # The control-plane baseline plus the watcher that pauses Argo CD for
+          # sleeping tenant clusters and wakes them on GitOps intent.
+          vcp-management-cluster-baseline:
+            applications:
+              - name: cert-manager
+              - name: godaddy-webhook
+                dependsOn:
+                  - cert-manager
+              - name: godaddy-clusterissuer
+                dependsOn:
+                  - godaddy-webhook
+              - name: metrics-server
+              - name: metallb
+              - name: metallb-config
+                dependsOn:
+                  - metallb
+              - name: envoy-gateway
+              - name: cert-config
+                dependsOn:
+                  - godaddy-clusterissuer
+              - name: envoy-gateway-config
+                dependsOn:
+                  - envoy-gateway
+                  - metallb-config
+                  - cert-config
+              - name: external-dns
+                dependsOn:
+                  - envoy-gateway-config
+              - name: vcluster-gitops-watcher
+
+          # Auto-selected for rendered VCIs with privateNodes.enabled: true.
+          # Chart default is "cluster-collector"; this fleet uses the embedded
+          # etcd variant in tenant-management/argocd-templates.
+          tenant-observability-private-nodes:
+            applications:
+              - name: cluster-collector-with-embedded-etcd
+
+          # Auto-selected for rendered VCIs without private nodes.
+          tenant-observability-shared-nodes:
+            applications:
+              - name: shared-node-tenant-collector
+
+          gpu-nvidia-baseline:
+            applications:
+              - name: nvidia-gpu-operator
+              - name: nvidia-dra-driver-gpu
+
+          gpu-amd-baseline:
+            applications:
+              - name: amd-gpu-operator
+              - name: amd-dra-driver
+
+        # Escape hatch for hand-pinned bindings. Bindings should come from
+        # Cluster metadata via the controller, so this stays off.
+        staticBindings:
+          enabled: false
+          clusters: []
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vcluster-platform
+  syncPolicy:
+    automated:
+      # Generated ArgoCDApplication bindings are owned and pruned by the
+      # fleet-binding-controller, not by Argo CD. Prune stays off so the
+      # controller can adopt bindings created by the previous Helm release.
+      prune: false
+      selfHeal: true

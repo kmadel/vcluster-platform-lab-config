@@ -4,11 +4,16 @@
 # cluster: it watches VirtualClusterInstances cluster-wide and patches the Argo CD
 # Applications and imported cluster Secrets in the Platform management cluster's
 # argocd namespace. Its binding is created ONLY for the Platform management
-# cluster (see bindings/values.yaml), not for every control plane cluster.
+# cluster: it is listed in the vcp-management-cluster-baseline profile in
+# bootstrap/fleet-bindings.yaml, not in control-plane-baseline.
 #
-# It sources the centralized manifests copied into this repo (formerly applied by
-# hand from kpi-vcluster/manifests/argocd). The platform-token Secret is created
-# out of band and is intentionally NOT in git.
+# As of 2.0.0-rc.1 the watcher ships as a Helm chart on GHCR, so this app renders
+# the published chart instead of the hand-maintained manifests that used to live
+# in baseline/manifests/vcluster-gitops-watcher. The platform-token Secret is
+# still created out of band and is intentionally NOT in git. It must be a
+# dedicated access key, not the one the platform created for the Argo CD
+# integration: since Platform v4.12.0 that key carries
+# sleepmode.loft.sh/ignore-activity and can never wake a sleeping tenant cluster.
 apiVersion: management.loft.sh/v1
 kind: ArgoCDApplicationTemplate
 metadata:
@@ -21,9 +26,33 @@ spec:
     spec:
       project: default
       source:
-        repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
-        targetRevision: main
-        path: baseline/manifests/vcluster-gitops-watcher
+        repoURL: oci://ghcr.io/loft-demos/charts/vcluster-gitops-watcher
+        targetRevision: 2.0.0-rc.1
+        path: .
+        helm:
+          releaseName: vcluster-gitops-watcher
+          valuesObject:
+            argocd:
+              namespace: argocd
+            watcher:
+              # New in 2.0.0: derives the exact server URL the platform registers,
+              # so v2 ("connector") cluster Secrets with the instance-ID hash
+              # suffix match. The upgrade notes recommend always setting it.
+              platformHost: vcp.lab.kurtmadel.com
+              nodeSelector:
+                argocd: "true"
+              # distroless nonroot, pinned numerically as the manifests did.
+              podSecurityContext:
+                runAsUser: 65532
+                runAsGroup: 65532
+              wake:
+                upstreamBase: https://vcp.lab.kurtmadel.com
+                existingSecret: vcluster-platform-token
+                tokenKey: token
+                timeout: 10s
+                retryInterval: 30s
+                successOn: "502,504"
+                updateVCILastActivity: true
       destination:
         namespace: argocd
       syncPolicy:
