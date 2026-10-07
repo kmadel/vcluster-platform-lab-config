@@ -43,7 +43,7 @@ spec:
         integrations:
           argoCD:
             enabled: true
-            connector: connector: '{{ if contains "--" .Values.loft.project }}demo-lab-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}demo-lab{{ end }}'
+            connector: '{{ if contains "--" .Values.loft.project }}demo-lab-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}demo-lab{{ end }}'
 
         deploy:
           stacks:
