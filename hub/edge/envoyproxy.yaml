@@ -14,6 +14,11 @@ spec:
     kubernetes:
       envoyDeployment:
         replicas: 2
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 0
+            maxUnavailable: 1
         pod:
           # Control-plane nodes (was pinned to kpi-c01 pre-HA) so the data
           # plane remains available if a CP node dies; MetalLB moves the VIP.
