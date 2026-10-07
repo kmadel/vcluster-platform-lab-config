@@ -35,9 +35,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: envoy-gateway-system
   syncPolicy:
-    # automated:
-    #   prune: true
-    #   selfHeal: true
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       # On a fresh cluster the Envoy Gateway CRDs may not exist yet at dry run.
       - SkipDryRunOnMissingResource=true

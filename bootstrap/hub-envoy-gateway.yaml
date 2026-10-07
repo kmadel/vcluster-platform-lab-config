@@ -64,9 +64,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: envoy-gateway-system
   syncPolicy:
-    # automated:
-    #   prune: true
-    #   selfHeal: true
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       # The Gateway API and Envoy Gateway CRDs exceed the client-side apply
       # annotation limit.
