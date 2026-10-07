@@ -29,7 +29,7 @@ spec:
   project: default
   source:
     repoURL: oci://docker.io/envoyproxy/gateway-helm
-    targetRevision: v1.8.0
+    targetRevision: v1.9.2
     path: .
     helm:
       # Must stay "eg": the chart derives resource names from the release name,
