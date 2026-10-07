@@ -4,276 +4,209 @@ The shared Envoy Gateway edge on the hub: `loft-cluster`, the control plane
 cluster that runs vCluster Platform and Argo CD. The
 [`hub-edge`](../../bootstrap/hub-edge.yaml) Application owns this directory and
 [`hub-envoy-gateway`](../../bootstrap/hub-envoy-gateway.yaml) owns the controller
-chart. Argo CD only reads `*.yaml` here, so this README is never applied.
+chart (Envoy Gateway v1.8.0). Argo CD only reads `*.yaml` here, so this README is
+never applied.
 
-This doc covers:
+vCluster Platform is served directly by Envoy: an HTTPRoute on the terminated
+`https` listener, plus a BackendTrafficPolicy that allows the HTTP upgrades
+vCluster Platform needs, plus a SecurityPolicy for CORS. There is no TLS
+passthrough and no proxy in between.
 
-1. What runs today and why.
-2. Option A: serving vCluster Platform from Envoy directly, and the commits that
-   get there.
-3. What any vCluster Platform install needs from its edge, and how that maps to
-   other ingress setups.
-
-## 1. Setup before Option A
-
-> **Status (2026-10-07):** A1 passed (run as a temporary test route outside Git)
-> and the A2 cutover is in this directory: `vcp-tls` and the TLSRoute are gone,
-> and `vcp.lab` is served by `vcluster-platform-https`. `platform-tls-proxy.yaml`
-> and the `vcp` Certificate stay until A3 as the rollback path. This section
-> describes the setup as it was before the cutover.
+## Files
 
 | File | What it is |
 | --- | --- |
 | `gatewayclass.yaml` | `eg` GatewayClass |
 | `envoyproxy.yaml` | Envoy data plane: 2 replicas on control-plane nodes, MetalLB VIP `192.168.50.10` |
-| `gateway.yaml` | `lab` Gateway: `*.lab`, `*.apps.lab`, and `*.tenant.lab` listeners, plus `vcp-tls` passthrough |
-| `clienttrafficpolicy.yaml` | Keeps `%2F` in paths (Argo CD) |
-| `certificates.yaml` | Let's Encrypt via DNS-01 for each wildcard, plus `vcp.lab` |
-| `platform-routes.yaml` | `vcp.lab` port 80 redirect, plus the TLSRoute to nginx |
-| `platform-tls-proxy.yaml` | nginx: terminates TLS for `vcp.lab`, forwards to `loft:80`, adds CORS |
+| `gateway.yaml` | `lab` Gateway: HTTP and HTTPS listeners for `*.lab`, `*.apps.lab`, `*.tenant.lab` |
+| `clienttrafficpolicy.yaml` | Keeps `%2F` in paths on `https` and `apps-https` (Argo CD) |
+| `certificates.yaml` | Let's Encrypt wildcards via DNS-01 (the VIP is a private IP) |
+| `platform-routes.yaml` | `vcp.lab`: port 80 redirect, and `vcluster-platform-https` to `loft:80` |
+| `platform-upgrades.yaml` | Upgrade types for the Platform route |
+| `platform-cors.yaml` | CORS for the `*.tenant.lab` snooze page |
 | `fleet-observability-otlp-route.yaml` | `otel.lab` `POST /v1/metrics` to the observability connector |
+| `platform-tls-proxy.yaml` | **Unused.** The old nginx proxy, kept as a rollback path. See [Cleanup](#cleanup) |
 
 ```text
-vcp.lab   :443 --SNI--> vcp-tls (Passthrough) --> TLSRoute --> nginx (TLS, CORS) --> loft:80
-*.lab     :443 --SNI--> https (Terminate)     --> HTTPRoutes (otel.lab)
-*.apps    :443 --SNI--> apps-https            --> Argo CD, Forgejo
-*.tenant  :443 --SNI--> tenant-https          --> tenant cluster routes
+vcp.lab   :443 --SNI--> https (Terminate)  --> vcluster-platform-https --> loft:80
+                                               + BackendTrafficPolicy (upgrade types)
+                                               + SecurityPolicy (CORS)
+*.lab     :443 --SNI--> https              --> otel.lab
+*.apps    :443 --SNI--> apps-https         --> Argo CD, Forgejo
+*.tenant  :443 --SNI--> tenant-https       --> tenant cluster routes
+any       :80           http listeners     --> redirects
 ```
 
-### Why vCluster Platform goes through nginx today
+Argo CD pulls this repo from Forgejo through `apps-https`. A broken Gateway
+therefore also cuts Argo CD off from its own Git source. To protect against
+that:
 
-Private nodes join tenant clusters through the Tailscale coordinator that
-vCluster Platform embeds. It is served on the same `loftHost` as the UI and API.
-To register, a node sends:
+- The GatewayClass, EnvoyProxy, and Gateway carry `Prune=false,Delete=false`.
+- The Certificates carry `Delete=false`. Recreating one reissues it and spends
+  Let's Encrypt rate limit.
+- The Applications have no resources-finalizer, so deleting one leaves the edge
+  running.
 
-```http
-POST /coordinator/ts2021 HTTP/1.1
-Upgrade: tailscale-control-protocol
-Connection: upgrade
-```
+If routing breaks anyway, apply the fix with `kubectl apply -f hub/edge/` from a
+checkout, then push the same change.
 
-The node expects `101 Switching Protocols` back. Envoy only accepts upgrade
-types that are on its allowlist, and Envoy Gateway's default allowlist is just
-`websocket`. Any other upgrade gets a local `403` with response details
-`upgrade_failed`. nginx forwards any `Upgrade` header, so the setup sends
-`vcp.lab` past Envoy's HTTP layer (TLS passthrough) and lets nginx do the HTTP
-work.
+## How vCluster Platform is exposed
 
-That workaround costs:
+vCluster Platform serves everything on one hostname (`config.loftHost`): the
+UI, the API, the Kubernetes proxy to tenant clusters, the Tailscale coordinator
+for private nodes, and DERP. It needs three things from the edge.
 
-- A TLSRoute (an experimental-channel API).
-- An nginx Deployment.
-- A second certificate.
-- CORS configured in nginx.
-- A cert that never reloads. nginx reads it only at startup, so every
-  cert-manager renewal needs a pod restart. On 2026-10-07 nginx was 18 days
-  from serving an expired cert.
-- A 1 MiB request body limit, nginx's default.
+### 1. The route: `platform-routes.yaml`
 
-## 2. Option A: Envoy-native
+`vcluster-platform-https` attaches to the `https` listener (the `*.lab`
+wildcard cert covers `vcp.lab`) and sends everything to the `loft` Service on
+port 80. TLS terminates once, at Envoy.
 
-Envoy Gateway can add upgrade types itself through
-`BackendTrafficPolicy.spec.httpUpgrade`. The hub runs v1.8.0, which has this
-field (checked with `kubectl explain` on 2026-10-07). With it, `vcp.lab` is an
-ordinary HTTPRoute on the `https` listener. The `*.lab` wildcard cert already
-covers `vcp.lab`.
+`timeouts.request: 0s` turns off Envoy's default 15s route timeout. Watches,
+log follows, and the Tailscale map poll are long-lived streams. A
+`kubectl get -w` through vCluster Platform stayed connected for 12 minutes in
+testing.
 
-```text
-vcp.lab :443 --SNI--> https (Terminate) --> HTTPRoute vcluster-platform-https --> loft:80
-                                            + BackendTrafficPolicy (upgrade types)
-                                            + SecurityPolicy (CORS)
-```
+### 2. Upgrade types: `platform-upgrades.yaml`
 
-### Target files
+Envoy accepts an HTTP/1.1 upgrade only if its type is on an allowlist. Envoy
+Gateway's default allowlist is `websocket` alone. Any other upgrade gets a
+local `403`, with `upgrade_failed` in the access log.
 
-`platform-routes.yaml` keeps the port 80 redirect route. Add the HTTPS route and
-remove the TLSRoute:
+| Type | Used by |
+| --- | --- |
+| `websocket` | UI; `kubectl exec`/`attach` on newer clients; DERP from websocket-built Tailscale clients |
+| `spdy/3.1` | `kubectl exec`/`port-forward` on older clients |
+| `tailscale-control-protocol` | Private nodes registering: `POST /ts2021` (also served at `/coordinator/ts2021`) |
+| `DERP` | Private nodes' DERP relay from standard Tailscale clients: `GET /derp` |
 
-```yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: vcluster-platform-https
-  namespace: vcluster-platform
-spec:
-  parentRefs:
-    - name: lab
-      namespace: envoy-gateway-system
-      sectionName: https
-  hostnames:
-    - vcp.lab.kurtmadel.com
-  rules:
-    - backendRefs:
-        - name: loft
-          port: 80
-      timeouts:
-        # Envoy's default route timeout is 15s. Watches, log follows, and the
-        # Tailscale map poll are long-lived streams.
-        request: 0s
-```
+The list replaces the default, which is why `websocket` is listed explicitly.
+Don't add `requestBuffer` to this policy: when it's set, Envoy Gateway ignores
+the upgrade configuration.
 
-New `platform-upgrades.yaml`:
+### 3. CORS: `platform-cors.yaml`
 
-```yaml
-apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: BackendTrafficPolicy
-metadata:
-  name: vcluster-platform-upgrades
-  namespace: vcluster-platform
-spec:
-  targetRefs:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: vcluster-platform-https
-  # Replaces the default list, so websocket must be listed too.
-  # Do not add requestBuffer to this policy: when it is set, Envoy Gateway
-  # ignores the upgrade configuration.
-  httpUpgrade:
-    - type: websocket                    # UI, newer kubectl exec/attach
-    - type: spdy/3.1                     # older kubectl exec/port-forward
-    - type: tailscale-control-protocol   # private nodes
-    - type: DERP                         # private nodes: DERP relay (non-websocket clients)
-```
+The snooze/wake page on `*.tenant.lab` calls the vCluster Platform API from the
+browser with an `Authorization` header. That's cross-origin, so the browser
+sends a preflight first. vCluster Platform sets no CORS headers, and it strips
+any it gets from backends, so the edge is the only place they can come from.
 
-New `platform-cors.yaml`. It's needed because the snooze/wake page on
-`*.tenant.lab` calls the Platform API from the browser with an `Authorization`
-header. vCluster Platform sets no CORS headers and strips any it gets from
-backends, so the edge is the only place they can come from:
+- **Preflights from allowed origins:** Envoy answers them itself, and they
+  never reach vCluster Platform.
+- **Allowed requests:** Envoy echoes the origin in
+  `Access-Control-Allow-Origin`.
+- **Other origins:** Envoy adds no allow header, so the browser blocks the
+  response. Non-browser clients (kubectl, private nodes) send no `Origin` and
+  aren't affected.
+- **`allowOrigins` format:** a list of strings. A wildcard covers one leading
+  label only, and the scheme is required.
+- **No `allowCredentials`:** the page sends a bearer token in a header, not
+  cookies.
+- **Methods:** `GET, OPTIONS`, matching the page's read-only access key. Add
+  `POST` here and on the key if the page ever wakes tenant clusters itself.
+- **Scope:** attach the policy to the Platform route only. A route-level
+  SecurityPolicy replaces a Gateway-level one, and at Gateway level it would
+  also cover Argo CD and Forgejo.
 
-```yaml
-apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: SecurityPolicy
-metadata:
-  name: platform-cors
-  namespace: vcluster-platform
-spec:
-  targetRefs:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: vcluster-platform-https
-  cors:
-    allowOrigins:
-      - "https://*.tenant.lab.kurtmadel.com"   # strings, one leading wildcard label
-    allowMethods: [GET, OPTIONS]               # add POST if the page ever wakes
-    allowHeaders: [Authorization, Content-Type]
-    maxAge: 86400s
-```
-
-Envoy answers preflights from allowed origins itself, and they never reach
-vCluster Platform. Don't set `allowCredentials`: the page sends a bearer token in
-a header, not cookies. Attach the policy to this route only, not the Gateway.
-A route-level SecurityPolicy replaces a Gateway-level one, and at Gateway level
-it would also cover Argo CD and Forgejo.
-
-### Commit sequence
-
-Each step is its own commit. `hub-edge` syncs it automatically.
-
-**A1. Test hostname (additive, no impact on `vcp.lab`). Done 2026-10-07:** without the policy Envoy returned `403`; with it vCluster Platform returned `400 missing Tailscale handshake header`, the same reply as the nginx path. Add a copy of the
-HTTPRoute and the BackendTrafficPolicy for `vcp-test.lab.kurtmadel.com`. It's
-covered by the wildcard, so no DNS or cert changes are needed. Then:
+## Checking it
 
 ```sh
-curl -sv --http1.1 -X POST \
-  -H 'Upgrade: tailscale-control-protocol' -H 'Connection: upgrade' \
-  https://vcp-test.lab.kurtmadel.com/coordinator/ts2021
+# Route and policies accepted
+kubectl -n vcluster-platform get httproute,backendtrafficpolicy,securitypolicy
+
+# Upgrades reach vCluster Platform (a 400 "missing Tailscale handshake header"
+# is the right answer to a handshake-less probe; a 403 means Envoy blocked it)
+curl -s --http1.1 -X POST -H 'Upgrade: tailscale-control-protocol' -H 'Connection: upgrade' \
+  https://vcp.lab.kurtmadel.com/ts2021
+curl -s --http1.1 -o /dev/null -w '%{http_code}\n' -H 'Upgrade: DERP' -H 'Connection: Upgrade' \
+  --max-time 5 https://vcp.lab.kurtmadel.com/derp          # 101
+
+# CORS: an allowed origin is echoed back, any other origin is not
+curl -s -D - -o /dev/null -X OPTIONS -H 'Origin: https://demo.tenant.lab.kurtmadel.com' \
+  -H 'Access-Control-Request-Method: GET' https://vcp.lab.kurtmadel.com/version | grep -i access-control
 ```
 
-If you get `403` and the Envoy access log shows `upgrade_failed`, Envoy is
-still blocking the upgrade: stop here. Any response from vCluster Platform
-(usually a 4xx about the missing handshake header) means the upgrade passed.
+How many private-node sessions Envoy is holding open right now:
 
-**A2. Cutover.** In one commit:
+```sh
+kubectl -n envoy-gateway-system port-forward <envoy-pod> 19000:19000 &
+curl -s 'http://127.0.0.1:19000/stats?filter=upgrades_active' | grep https
+```
 
-- Add `vcluster-platform-https`, `platform-upgrades.yaml`, and `platform-cors.yaml`.
-- Remove the TLSRoute from `platform-routes.yaml`.
-- Remove the `vcp-tls` listener from `gateway.yaml`.
+Upgraded connections appear in the access log only when they close. A healthy
+private node is therefore mostly invisible in the log, so use the stat above.
 
-While `vcp-tls` exists, its exact SNI match wins over the `*.lab` wildcard, so
-removing the listener is the switch. That makes the cutover all-or-nothing, and
-`git revert` undoes it. Argo CD and Forgejo use `apps-https`, which this commit
-doesn't touch, so GitOps keeps working if the cutover fails.
+**Expected noise:** the Tailscale client races port 80 against 443. You'll see
+`POST /ts2021 403 upgrade_failed` with `:authority vcp.lab.kurtmadel.com:80` on
+the redirect route. That's the losing port-80 attempt and needs no fix.
 
-Check after the sync:
+**Tenant routes must pin a listener.** On port 80, `*.lab` and `*.tenant.lab`
+are merged into one Envoy route config. A tenant HTTPRoute with no
+`sectionName` attaches to both, and Envoy rejects the whole config with
+"Duplicate entry of domain". It then keeps serving the last good config, so
+nothing breaks until that Envoy pod restarts. The `demo-frontend`
+ArgoCDApplicationTemplate pins `sectionName` from the
+`demo.vcluster.com/vcluster-api-gateway-http-listener-name` annotation on the
+Cluster (`tenant-https` here). Do the same for any other template that creates
+tenant routes. To check:
 
-- `kubectl -n vcluster-platform get httproute,backendtrafficpolicy,securitypolicy`:
-  every policy is `Accepted=True`.
-- Private nodes leave `NeedsLogin` and get a Tailscale IP.
-- No `upgrade_failed` in the Envoy logs for `/coordinator/ts2021`.
-- `kubectl exec` and `kubectl get -w` through vCluster Platform stay up past 5
-  minutes. If idle streams drop, add a ClientTrafficPolicy with
-  `timeout.http.idleTimeout` on the `https` listener. The existing
-  `lab-https-paths` policy already targets that listener, so add it there.
-- CORS preflight: run a `curl -X OPTIONS` with `Origin:
-  https://<x>.tenant.lab.kurtmadel.com` and `Access-Control-Request-Method: GET`.
-  The response should echo the origin. A non-tenant origin gets no
-  `Access-Control-Allow-Origin` header.
-- The snooze page loads with no CORS errors in the browser console.
+```sh
+kubectl -n envoy-gateway-system logs -l gateway.envoyproxy.io/owning-gateway-name=lab \
+  -c envoy --since=1h | grep -c "Duplicate entry of domain"    # 0
+```
 
-**A3. Cleanup, after a few stable days.**
+## Cleanup
 
-- Remove the test route, `platform-tls-proxy.yaml`, and the `vcp-lab-kurtmadel-com`
-  Certificate. Argo CD prunes the nginx ConfigMap, Deployment, and Service.
-- The Certificate has `Delete=false`, so delete it and its Secret by hand:
-  `kubectl -n vcluster-platform delete certificate vcp-lab-kurtmadel-com` and
-  `kubectl -n vcluster-platform delete secret vcp-lab-kurtmadel-com-tls`.
+`platform-tls-proxy.yaml` (nginx) and the `vcp-lab-kurtmadel-com` Certificate
+are left over from the pre-cutover setup, kept as a rollback path. Rolling back
+means re-adding the `vcp-tls` Passthrough listener and a TLSRoute to
+`loft-tls-proxy:443`, both visible in Git history before the cutover commit.
 
-### What changes as a result
+Once you no longer need that:
 
-| | Today | Option A |
-| --- | --- | --- |
-| Hops for `vcp.lab` | Envoy (L4), nginx, loft | Envoy (L7), loft |
-| Certificates | `*.lab` + `vcp.lab` | `*.lab` only |
-| Cert renewal | Needs an nginx restart | Envoy hot-reloads Secrets |
-| CORS | nginx `map` | SecurityPolicy |
-| Body size limit | 1 MiB (nginx default) | None by default |
-| HTTP/2 coalescing on `*.lab` | Can misroute `vcp.lab` | Not an issue, same listener |
-| Client IP at vCluster Platform | Envoy pod IP | `X-Forwarded-For` from Envoy (node IP, due to `externalTrafficPolicy: Cluster`) |
-| Experimental APIs | TLSRoute | None |
+1. Delete `platform-tls-proxy.yaml` and the `vcp` Certificate from
+   `certificates.yaml`. Argo CD prunes the nginx ConfigMap, Deployment, and
+   Service.
+2. The Certificate has `Delete=false`, so remove it by hand:
+   `kubectl -n vcluster-platform delete certificate vcp-lab-kurtmadel-com` and
+   `kubectl -n vcluster-platform delete secret vcp-lab-kurtmadel-com-tls`.
 
-## 3. Applying this to other vCluster Platform installs
+## Applying this to other vCluster Platform installs
 
-Most of what's above isn't specific to this lab. The DNS-01 certs, MetalLB, and
-public DNS pointing at a private IP are. The edge requirements come from
-vCluster Platform itself.
+The DNS-01 certs, MetalLB, and public DNS pointing at a private IP are specific
+to this lab. The rest follows from what vCluster Platform needs.
 
-### What vCluster Platform needs from any edge
+### What any edge must provide
 
-vCluster Platform serves the UI, the API, the Kubernetes proxy to tenant
-clusters, the Tailscale coordinator, and DERP on **one hostname**
-(`config.loftHost`). The edge in front of it must:
+1. **HTTP/1.1 upgrades.**
+   - Always: `websocket` and `spdy/3.1`.
+   - **If private nodes are used**, also `tailscale-control-protocol` and
+     `DERP`. The Tailscale client forces HTTP/1.1 for these.
+2. **Long-lived streams.** No short request timeout, and no response buffering
+   on watches, log follows, the map poll, or DERP.
+3. **Host and scheme forwarded.** vCluster Platform builds redirects and OIDC
+   callbacks from `Host` and `X-Forwarded-Proto: https`.
+4. **No small request-body cap.** Applies through the Kubernetes proxy can be
+   large.
+5. **CORS only if a browser page on another origin calls the API.** vCluster
+   Platform adds no CORS headers itself.
 
-1. **Pass HTTP/1.1 upgrades.** It needs `websocket` (UI, newer kubectl
-   exec/attach), `spdy/3.1` (older kubectl clients), and, **if private nodes are
-   used**, `tailscale-control-protocol` on `POST /ts2021` (also served at
-   `/coordinator/ts2021`) and `DERP` on `GET /derp`. The Tailscale client
-   forces HTTP/1.1 for these. It also tries port 80 alongside 443, so a `403
-   upgrade_failed` on the port 80 redirect route is expected and harmless.
-2. **Allow long-lived streams.** No short request timeout, and no response
-   buffering on watches, log follows, the map poll, or DERP.
-3. **Forward host and scheme.** Set `Host` and `X-Forwarded-Proto: https`.
-   vCluster Platform builds redirects and OIDC callbacks from them.
-4. **Not cap request bodies** at something small. Applies through the
-   Kubernetes proxy can be large.
-5. **Add CORS only if a browser page on another origin calls the API.**
-   vCluster Platform adds no CORS headers itself.
+Without private nodes, only `websocket` and `spdy/3.1` matter.
 
-Without private nodes, only the first upgrade types (`websocket`, `spdy/3.1`)
-matter. Envoy Gateway's default plus `spdy/3.1` covers them, and the Tailscale
-problem doesn't arise.
-
-### How common edges handle this
+### How common edges handle it
 
 | Edge | Upgrades for private nodes | Notes |
 | --- | --- | --- |
-| ingress-nginx (the chart's `ingress.enabled: true` default) | Works as is: nginx forwards any `Upgrade` | Raise `proxy-read-timeout`, `proxy-send-timeout`, and `proxy-body-size` via annotations. |
-| Envoy Gateway | Needs `BackendTrafficPolicy.httpUpgrade` (Option A), or an `EnvoyPatchPolicy` on the HCM's `upgrade_configs` on versions without the field | Check first with `kubectl explain backendtrafficpolicy.spec.httpUpgrade`. Set `timeouts.request: 0s` on the route. |
-| Other Envoy-based Gateway API implementations (kgateway, Istio, Cilium's Envoy) | Assume the same websocket-only default until tested | Find the implementation's upgrade-type setting. Run the A1 curl test before cutover. |
-| L4 load balancer or TLS passthrough straight to vCluster Platform | Works: vCluster Platform is the coordinator and handles every upgrade | vCluster Platform serves a custom cert from the `PROXY_TLS_CERT` and `PROXY_TLS_KEY` env vars (chart `envValueFrom` with a `secretKeyRef`). It reads them only at startup, so restart on renewal. There's nowhere to add CORS. |
-| Passthrough to a TLS-terminating proxy (this lab's old setup) | Works | Full control, but you run and patch an extra proxy and handle cert reloads. |
+| Envoy Gateway (this setup) | `BackendTrafficPolicy.httpUpgrade`. On versions without the field, an `EnvoyPatchPolicy` on the HCM's `upgrade_configs` | Check with `kubectl explain backendtrafficpolicy.spec.httpUpgrade`. Set `timeouts.request: 0s` on the route. |
+| ingress-nginx (the chart's `ingress.enabled: true` default) | Works as is: nginx forwards any `Upgrade` | Raise `proxy-read-timeout`, `proxy-send-timeout`, and `proxy-body-size` with annotations. |
+| Other Envoy-based Gateway API implementations (kgateway, Istio, Cilium's Envoy) | Assume a websocket-only default until tested | Find the implementation's upgrade-type setting. |
+| L4 load balancer or TLS passthrough straight to vCluster Platform | Works: vCluster Platform terminates and handles every upgrade | vCluster Platform serves a custom cert from `PROXY_TLS_CERT`/`PROXY_TLS_KEY` (chart `envValueFrom` with a `secretKeyRef`). It reads them only at startup, so restart after renewal. There's nowhere to add CORS. |
 
-The A1 curl test works on any of these. Point it at a test hostname on the
-candidate edge before switching the real `loftHost`.
+Before switching the real `loftHost` on any edge, put a test hostname on the
+candidate edge and run the two upgrade probes from [Checking it](#checking-it):
+
+- A `403` from the edge means the upgrade type is blocked.
+- A reply from vCluster Platform means it passed.
 
 ### Certificates
 
@@ -281,8 +214,8 @@ candidate edge before switching the real `loftHost`.
 - **Public DNS pointing at a private IP (this lab):** Let's Encrypt can't reach
   the edge, so use DNS-01. Routers with DNS-rebinding protection need the zone
   allowlisted.
-- **Private CA:** fine for the edge, but private nodes and agents must trust it.
-  Use a public CA for `loftHost` unless that trust is distributed.
+- **Private CA:** works, but private nodes and agents must trust it. Use a
+  public CA for `loftHost` unless you distribute that trust.
 
 ### Fleet clusters
 
@@ -290,6 +223,5 @@ Only the cluster that hosts vCluster Platform needs the `loftHost` route.
 Connected control plane clusters (agents) dial out to it. The fleet
 `baseline/charts/envoy-gateway-config` chart still renders a `vcp-tls`
 passthrough listener when `fleet.lab.kurtmadel.com/platform-hostname` is set.
-Once Option A is proven here, change that chart to render the HTTPRoute,
-BackendTrafficPolicy, and optional CORS instead. A new hub built from the fleet
-templates then starts in the Option A shape.
+Change it to render this route, the upgrade policy, and optional CORS instead,
+so a hub built from the fleet templates starts in this shape.
