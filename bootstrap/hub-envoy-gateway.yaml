@@ -1,0 +1,73 @@
+# hub-envoy-gateway.yaml - Layer 1: the Envoy Gateway controller on the hub
+# (loft-cluster, where Argo CD and vCluster Platform run).
+#
+# Adopts the release that was installed by hand with
+# `helm upgrade --install eg ...`: same chart, version, release name, and values
+# as the live release (helm get values eg, 2026-10-07). After the first sync,
+# delete the Helm release Secrets (owner=helm,name=eg) so nobody runs helm
+# against it again. Do NOT helm uninstall; that deletes the controller.
+#
+# A plain Application, not the baseline/envoy-gateway.yaml template bound
+# through a FleetProfile: the hub's edge is on Argo CD's own recovery path
+# (Forgejo is reached through it), so it should not depend on vCluster Platform
+# rendering templates or fleet-bindings binding them. The baseline template also
+# passes no values, which would move the controller off the control-plane nodes.
+#
+# No resources-finalizer: removing this file prunes the Application, but leaves
+# the controller running.
+#
+# automated is intentionally off for the adoption sync. Review the diff, sync
+# once by hand, then uncomment it in a follow-up commit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hub-envoy-gateway
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: oci://docker.io/envoyproxy/gateway-helm
+    targetRevision: v1.8.0
+    path: .
+    helm:
+      # Must stay "eg": the chart derives resource names from the release name,
+      # so anything else renders a second install next to the live one.
+      releaseName: eg
+      valuesObject:
+        # Controller and certgen on control-plane nodes, so the edge survives a
+        # single control-plane node loss.
+        deployment:
+          pod:
+            nodeSelector:
+              node-role.kubernetes.io/control-plane: "true"
+            tolerations:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+                effect: NoSchedule
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+                effect: NoSchedule
+        certgen:
+          job:
+            nodeSelector:
+              node-role.kubernetes.io/control-plane: "true"
+            tolerations:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+                effect: NoSchedule
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+                effect: NoSchedule
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: envoy-gateway-system
+  syncPolicy:
+    # automated:
+    #   prune: true
+    #   selfHeal: true
+    syncOptions:
+      # The Gateway API and Envoy Gateway CRDs exceed the client-side apply
+      # annotation limit.
+      - ServerSideApply=true

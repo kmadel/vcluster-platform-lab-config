@@ -1,0 +1,20 @@
+# Envoy Gateway redirects paths containing %2F by default. Argo CD embeds encoded
+# cluster URLs in its paths, so keep escaped slashes unchanged.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: lab-https-paths
+  namespace: envoy-gateway-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: lab
+      sectionName: https
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: lab
+      sectionName: apps-https
+  path:
+    escapedSlashesAction: KeepUnchanged
+    disableMergeSlashes: true

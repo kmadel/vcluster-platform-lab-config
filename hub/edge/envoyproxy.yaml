@@ -1,0 +1,42 @@
+# Envoy data plane for the hub edge: 2 replicas on control-plane nodes, one per
+# node, MetalLB VIP 192.168.50.10 (the address the public *.lab DNS records
+# point at). Never pruned or deleted by Argo CD.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: lab-edge
+  namespace: envoy-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 2
+        pod:
+          # Control-plane nodes (was pinned to kpi-c01 pre-HA) so the data
+          # plane remains available if a CP node dies; MetalLB moves the VIP.
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: "true"
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/component: proxy
+                      gateway.envoyproxy.io/owning-gateway-name: lab
+                      gateway.envoyproxy.io/owning-gateway-namespace: envoy-gateway-system
+                  topologyKey: kubernetes.io/hostname
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+      envoyService:
+        type: LoadBalancer
+        annotations:
+          metallb.io/loadBalancerIPs: 192.168.50.10
+        externalTrafficPolicy: Cluster

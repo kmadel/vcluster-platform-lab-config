@@ -1,0 +1,11 @@
+# The "eg" GatewayClass for the hub's Envoy Gateway. Never pruned or deleted by
+# Argo CD: every route on this cluster hangs off it, including the one Argo CD
+# pulls this repo through.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: eg
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller

@@ -1,0 +1,43 @@
+# hub-edge.yaml - Layer 1: the hub's shared edge on Envoy Gateway. GatewayClass,
+# EnvoyProxy, the "lab" Gateway and its policies, the vCluster Platform routes
+# and nginx TLS proxy, the Fleet Observability OTLP route, and the Let's Encrypt
+# Certificates. All of it was applied by hand from kpi-vcluster/manifests and is
+# adopted here unchanged (kubectl diff against the live objects was clean on
+# 2026-10-07).
+#
+# Out of scope, still owned elsewhere: the argocd-server and forgejo HTTPRoutes
+# (their Helm charts), tenant cluster routes (synced by vCluster), cert-manager,
+# the GoDaddy webhook and ClusterIssuers (still manual), and the Secrets.
+#
+# Recovery: Argo CD fetches this repo from forgejo.apps.lab.kurtmadel.com, which
+# is served by this Gateway. The GatewayClass, EnvoyProxy and Gateway carry
+# Prune=false,Delete=false, and this Application has no resources-finalizer, so
+# Argo CD can't take the edge away. If a bad commit breaks routing, fix it with
+# `kubectl apply -f hub/edge/` from a local checkout, then push the same change.
+#
+# automated is intentionally off for the adoption sync. Review the diff, sync
+# once by hand, then uncomment it in a follow-up commit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hub-edge
+  namespace: argocd
+  annotations:
+    # After the controller (its CRDs) in a fresh rebuild.
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+    targetRevision: main
+    path: hub/edge
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: envoy-gateway-system
+  syncPolicy:
+    # automated:
+    #   prune: true
+    #   selfHeal: true
+    syncOptions:
+      # On a fresh cluster the Envoy Gateway CRDs may not exist yet at dry run.
+      - SkipDryRunOnMissingResource=true

@@ -1,0 +1,26 @@
+# OTLP metrics ingress for Fleet Observability: agents POST to
+# https://otel.lab.kurtmadel.com/v1/metrics. The backend Service is created by
+# vCluster Platform (owned by the loft Deployment) and its name carries a
+# generated suffix; if the observability connector is re-created, update the
+# name here.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: fleet-observability-otlp
+  namespace: vcluster-platform
+spec:
+  parentRefs:
+    - name: lab
+      namespace: envoy-gateway-system
+      sectionName: https
+  hostnames:
+    - otel.lab.kurtmadel.com
+  rules:
+    - matches:
+        - method: POST
+          path:
+            type: Exact
+            value: /v1/metrics
+      backendRefs:
+        - name: gateway-observability-connector-9t226
+          port: 4318

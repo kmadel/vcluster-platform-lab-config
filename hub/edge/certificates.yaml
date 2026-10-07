@@ -1,0 +1,71 @@
+# Let's Encrypt certificates for the hub edge, issued with DNS-01 through the
+# GoDaddy webhook (the VIP is a private LAN IP, so HTTP-01 cannot work).
+# Delete=false: re-creating a Certificate reissues it and spends Let's Encrypt
+# rate limit. The issued Secrets are not in Git.
+#
+# Names match the live objects, which differ from baseline/charts/cert-config
+# (that chart names the Certificate after its Secret). Do not bind cert-config to
+# loft-cluster while these exist, or two Certificates will own one Secret.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lab-kurtmadel-com
+  namespace: envoy-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  secretName: lab-kurtmadel-com-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  # The live cert has no apex (lab.kurtmadel.com). Adding it reissues the cert.
+  dnsNames:
+    - "*.lab.kurtmadel.com"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: apps-lab-kurtmadel-com
+  namespace: envoy-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  secretName: apps-lab-kurtmadel-com-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.apps.lab.kurtmadel.com"
+    - apps.lab.kurtmadel.com
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tenant-lab-kurtmadel-com
+  namespace: envoy-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  secretName: tenant-lab-kurtmadel-com-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.tenant.lab.kurtmadel.com"
+---
+# Served by the nginx TLS proxy, not by Envoy (vcp-tls is passthrough), so it
+# lives in the Platform namespace.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: vcp-lab-kurtmadel-com
+  namespace: vcluster-platform
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  secretName: vcp-lab-kurtmadel-com-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - vcp.lab.kurtmadel.com
