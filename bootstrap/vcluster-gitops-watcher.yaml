@@ -29,23 +29,23 @@ spec:
     helm:
       releaseName: vcluster-gitops-watcher
       valuesObject:
-    watcher:
-      # Exact server URL match for v2 cluster Secrets (instance-ID hash suffix).
-      platformHost: vcp.lab.kurtmadel.com
-      nodeSelector:
-        argocd: "true"
-      # distroless nonroot, pinned numerically. Merged with the chart's
-      # runAsNonRoot and seccompProfile defaults.
-      podSecurityContext:
-        runAsUser: 65532
-        runAsGroup: 65532
-      wake:
-        # Wake for a deploy, then put the tenant cluster back to sleep.
-        default: sync
-        upstreamBase: https://vcp.lab.kurtmadel.com
-        # Short-lived per-tenant-cluster tokens, impersonating this user.
-        accessKey:
-          user: gitops-watcher
+        watcher:
+          # Exact server URL match for v2 cluster Secrets (instance-ID hash suffix).
+          platformHost: vcp.lab.kurtmadel.com
+          nodeSelector:
+            argocd: "true"
+          # distroless nonroot, pinned numerically. Merged with the chart's
+          # runAsNonRoot and seccompProfile defaults.
+          podSecurityContext:
+            runAsUser: 65532
+            runAsGroup: 65532
+          wake:
+            # Wake for a deploy, then put the tenant cluster back to sleep.
+            default: sync
+            upstreamBase: https://vcp.lab.kurtmadel.com
+            # Short-lived per-tenant-cluster tokens, impersonating this user.
+            accessKey:
+              user: gitops-watcher
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
