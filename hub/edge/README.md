@@ -132,6 +132,7 @@ spec:
     - type: websocket                    # UI, newer kubectl exec/attach
     - type: spdy/3.1                     # older kubectl exec/port-forward
     - type: tailscale-control-protocol   # private nodes
+    - type: DERP                         # private nodes: DERP relay (non-websocket clients)
 ```
 
 New `platform-cors.yaml`. It's needed because the snooze/wake page on
@@ -244,8 +245,10 @@ clusters, the Tailscale coordinator, and DERP on **one hostname**
 
 1. **Pass HTTP/1.1 upgrades.** It needs `websocket` (UI, newer kubectl
    exec/attach), `spdy/3.1` (older kubectl clients), and, **if private nodes are
-   used**, `tailscale-control-protocol` on `POST /coordinator/ts2021`. The
-   Tailscale client forces HTTP/1.1 for this request.
+   used**, `tailscale-control-protocol` on `POST /ts2021` (also served at
+   `/coordinator/ts2021`) and `DERP` on `GET /derp`. The Tailscale client
+   forces HTTP/1.1 for these. It also tries port 80 alongside 443, so a `403
+   upgrade_failed` on the port 80 redirect route is expected and harmless.
 2. **Allow long-lived streams.** No short request timeout, and no response
    buffering on watches, log follows, the map poll, or DERP.
 3. **Forward host and scheme.** Set `Host` and `X-Forwarded-Proto: https`.

@@ -7,6 +7,10 @@
 # Platform answered (400 "missing Tailscale handshake header", the same reply
 # the nginx path gives a handshake-less probe).
 #
+# DERP added after the cutover: Tailscale's DERP client sends Upgrade: DERP
+# unless built with websocket support. The lab's nodes used the websocket form,
+# but a probe with Upgrade: DERP got 403 until this entry was added.
+#
 # Do not add requestBuffer here: when it is set, Envoy Gateway ignores the
 # upgrade configuration.
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -23,3 +27,4 @@ spec:
     - type: websocket                    # UI, newer kubectl exec/attach
     - type: spdy/3.1                     # older kubectl exec/port-forward
     - type: tailscale-control-protocol   # private nodes: POST /coordinator/ts2021
+    - type: DERP                         # private nodes: GET /derp relay (non-websocket Tailscale clients)

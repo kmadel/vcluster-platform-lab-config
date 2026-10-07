@@ -19,6 +19,10 @@ metadata:
     fleet.lab.kurtmadel.com/dns-zone: "kurtmadel.com"
     fleet.lab.kurtmadel.com/cluster-issuer: "letsencrypt-prod"
     fleet.lab.kurtmadel.com/platform-hostname: "vcp.lab.kurtmadel.com"
+    # Listener the demo-frontend HTTPRoute pins to (tenant-management
+    # argocd-templates/demo-frontend.yaml). tenant-https, not the *.lab https
+    # listener: tenant hostnames live under *.tenant.lab.kurtmadel.com.
+    demo.vcluster.com/vcluster-api-gateway-http-listener-name: "tenant-https"
     fleet.lab.kurtmadel.com/profiles: "fleet-observability-platform"
     fleet-observability-grafana.argocd-template-param.fleet.lab.kurtmadel.com/platformHost: "vcp.lab.kurtmadel.com"
     cluster-collector.argocd-template-param.fleet.lab.kurtmadel.com/otlpEndpoint: >-

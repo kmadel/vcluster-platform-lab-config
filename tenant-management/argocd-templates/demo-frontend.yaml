@@ -58,6 +58,13 @@ spec:
               gateway:
                 name: '{{ index .Values.loft.clusterAnnotations "demo.vcluster.com/vcluster-api-gateway-name" }}' 
                 namespace: '{{ index .Values.loft.clusterAnnotations "demo.vcluster.com/vcluster-api-gateway-namespace" }}'
+                {{- with index .Values.loft.clusterAnnotations "demo.vcluster.com/vcluster-api-gateway-http-listener-name" }}
+                # Pin one listener. Without it the route attaches to every
+                # listener whose hostname matches, and on a Gateway with both
+                # *.<base> and *.tenant.<base> on port 80 Envoy rejects the
+                # merged route config for the duplicate domain.
+                sectionName: '{{ . }}'
+                {{- end }}
               {{- if .Values.hostname }}
               hostnames:
                 - "{{ .Values.hostname }}"
