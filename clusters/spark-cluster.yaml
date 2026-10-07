@@ -4,6 +4,11 @@ metadata:
   name: spark-cluster
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # Envoy Gateway supports the HTTPRoute request-mirror filter but doesn't
+    # advertise HTTPRouteRequestMirror in GatewayClass status. Without this,
+    # sleep mode can't count HTTPRoute traffic as activity and tenant clusters
+    # here show NoSupportedGatewayClass.
+    sleepmode.loft.sh/request-mirror-controller-allowlist: "gateway.envoyproxy.io/gatewayclass-controller"
     fleet.lab.kurtmadel.com/profiles: >-
       fleet-observability-collector
     cluster-collector.argocd-template-param.fleet.lab.kurtmadel.com/otlpEndpoint: >-

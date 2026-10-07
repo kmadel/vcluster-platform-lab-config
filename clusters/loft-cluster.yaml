@@ -12,6 +12,7 @@ metadata:
     # rebuilt management cluster is still selected.
     fleet.lab.kurtmadel.com/baseline: "true"
   annotations:
+    sleepmode.loft.sh/request-mirror-controller-allowlist: "gateway.envoyproxy.io/gatewayclass-controller"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     fleet.lab.kurtmadel.com/metallb-pool: "192.168.50.0/24"
     fleet.lab.kurtmadel.com/gateway-lb-ip: "192.168.50.10"
