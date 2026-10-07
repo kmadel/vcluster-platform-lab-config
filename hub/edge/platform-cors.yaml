@@ -1,0 +1,23 @@
+# CORS for the snooze/wake page on *.tenant.lab, which calls the Platform API
+# from the browser with an Authorization header. Envoy answers matching
+# preflights itself; the Platform never sees them. The Platform sets no CORS
+# headers of its own, so this is the only source.
+#
+# Attached to the Platform HTTPS route only: a route-level SecurityPolicy
+# replaces a Gateway-level one, and at Gateway level it would cover Argo CD too.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: platform-cors
+  namespace: vcluster-platform
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: vcluster-platform-https
+  cors:
+    allowOrigins:
+      - "https://*.tenant.lab.kurtmadel.com"
+    allowMethods: [GET, OPTIONS]
+    allowHeaders: [Authorization, Content-Type]
+    maxAge: 86400s

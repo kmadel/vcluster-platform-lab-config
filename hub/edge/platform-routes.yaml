@@ -1,11 +1,10 @@
-# vCluster Platform ingress on the hub.
+# vCluster Platform ingress on the hub (Option A, see README.md).
 #
-# Port 80 only redirects. Port 443 is TLS passthrough to the nginx proxy
-# (platform-tls-proxy.yaml), because Envoy Gateway's default upgrade allowlist
-# is websocket-only and rejects the Tailscale coordinator upgrade
-# (POST /coordinator/ts2021, Upgrade: tailscale-control-protocol) that private
-# nodes need. See kpi-vcluster/manifests/envoy/README.md for the Envoy-native
-# replacement (Option A).
+# Port 80 only redirects. Port 443 terminates on the shared "https" listener
+# (the *.lab wildcard cert covers vcp.lab) and routes straight to the loft
+# Service. The private-node Tailscale upgrade is allowed by
+# platform-upgrades.yaml; CORS for the *.tenant.lab snooze page comes from
+# platform-cors.yaml.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -26,18 +25,22 @@ spec:
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
-kind: TLSRoute
+kind: HTTPRoute
 metadata:
-  name: vcluster-platform
+  name: vcluster-platform-https
   namespace: vcluster-platform
 spec:
   parentRefs:
     - name: lab
       namespace: envoy-gateway-system
-      sectionName: vcp-tls
+      sectionName: https
   hostnames:
     - vcp.lab.kurtmadel.com
   rules:
     - backendRefs:
-        - name: loft-tls-proxy
-          port: 443
+        - name: loft
+          port: 80
+      timeouts:
+        # Envoy's default route timeout is 15s. Watches, log follows, and the
+        # Tailscale map poll are long-lived streams.
+        request: 0s

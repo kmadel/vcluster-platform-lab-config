@@ -14,7 +14,13 @@ This doc covers:
 3. What any vCluster Platform install needs from its edge, and how that maps to
    other ingress setups.
 
-## 1. Current setup
+## 1. Setup before Option A
+
+> **Status (2026-10-07):** A1 passed (run as a temporary test route outside Git)
+> and the A2 cutover is in this directory: `vcp-tls` and the TLSRoute are gone,
+> and `vcp.lab` is served by `vcluster-platform-https`. `platform-tls-proxy.yaml`
+> and the `vcp` Certificate stay until A3 as the rollback path. This section
+> describes the setup as it was before the cutover.
 
 | File | What it is |
 | --- | --- |
@@ -162,7 +168,7 @@ it would also cover Argo CD and Forgejo.
 
 Each step is its own commit. `hub-edge` syncs it automatically.
 
-**A1. Test hostname (additive, no impact on `vcp.lab`).** Add a copy of the
+**A1. Test hostname (additive, no impact on `vcp.lab`). Done 2026-10-07:** without the policy Envoy returned `403`; with it vCluster Platform returned `400 missing Tailscale handshake header`, the same reply as the nginx path. Add a copy of the
 HTTPRoute and the BackendTrafficPolicy for `vcp-test.lab.kurtmadel.com`. It's
 covered by the wildcard, so no DNS or cert changes are needed. Then:
 

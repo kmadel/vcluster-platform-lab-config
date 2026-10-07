@@ -1,0 +1,25 @@
+# HTTP/1.1 upgrade types vCluster Platform needs. Envoy Gateway's default list
+# is websocket only, and any other Upgrade gets a local 403 (upgrade_failed).
+# This list replaces the default, so websocket is listed explicitly.
+#
+# Verified 2026-10-07 on Envoy Gateway v1.8.0 with a test route: without this
+# policy POST /coordinator/ts2021 returned 403 from Envoy; with it, vCluster
+# Platform answered (400 "missing Tailscale handshake header", the same reply
+# the nginx path gives a handshake-less probe).
+#
+# Do not add requestBuffer here: when it is set, Envoy Gateway ignores the
+# upgrade configuration.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: vcluster-platform-upgrades
+  namespace: vcluster-platform
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: vcluster-platform-https
+  httpUpgrade:
+    - type: websocket                    # UI, newer kubectl exec/attach
+    - type: spdy/3.1                     # older kubectl exec/port-forward
+    - type: tailscale-control-protocol   # private nodes: POST /coordinator/ts2021

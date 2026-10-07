@@ -1,7 +1,6 @@
 # The shared "lab" Gateway on the hub. Listener map:
-#   http / https              *.lab.kurtmadel.com (https carries otel.lab)
-#   vcp-tls                   vcp.lab.kurtmadel.com, TLS passthrough to the
-#                             nginx proxy (exact SNI beats the *.lab wildcard)
+#   http / https              *.lab.kurtmadel.com (https carries vcp.lab and
+#                             otel.lab)
 #   apps-http / apps-https    *.apps.lab.kurtmadel.com (Argo CD, Forgejo)
 #   tenant-http / tenant-https *.tenant.lab.kurtmadel.com (tenant cluster routes)
 # Argo CD reaches Forgejo through apps-https, so a broken Gateway also breaks
@@ -26,15 +25,6 @@ spec:
       protocol: HTTP
       port: 80
       hostname: "*.lab.kurtmadel.com"
-      allowedRoutes:
-        namespaces:
-          from: All
-    - name: vcp-tls
-      protocol: TLS
-      port: 443
-      hostname: vcp.lab.kurtmadel.com
-      tls:
-        mode: Passthrough
       allowedRoutes:
         namespaces:
           from: All

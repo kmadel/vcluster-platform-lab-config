@@ -1,3 +1,7 @@
+# UNUSED since the Option A cutover: no TLSRoute points here any more. Kept for
+# one release as the rollback path (revert the cutover commit to re-add the
+# vcp-tls listener and TLSRoute). Remove in the cleanup commit (README A3).
+#
 # nginx that terminates TLS for vcp.lab.kurtmadel.com and forwards to the loft
 # Service with Upgrade/Connection preserved, plus CORS for the *.tenant.lab
 # snooze page. Known gaps (fix in Git after adoption, not during it):
