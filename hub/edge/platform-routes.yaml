@@ -1,4 +1,4 @@
-# vCluster Platform ingress on the hub (Option A, see README.md).
+# vCluster Platform ingress on the hub (see README.md).
 #
 # Port 80 only redirects. Port 443 terminates on the shared "https" listener
 # (the *.lab wildcard cert covers vcp.lab) and routes straight to the loft

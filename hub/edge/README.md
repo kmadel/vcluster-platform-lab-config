@@ -4,13 +4,13 @@ The shared Envoy Gateway edge on the hub: `loft-cluster`, the control plane
 cluster that runs vCluster Platform and Argo CD. The
 [`hub-edge`](../../bootstrap/hub-edge.yaml) Application owns this directory and
 [`hub-envoy-gateway`](../../bootstrap/hub-envoy-gateway.yaml) owns the controller
-chart (Envoy Gateway v1.8.0). Argo CD only reads `*.yaml` here, so this README is
+chart (Envoy Gateway v1.9.2, Envoy proxy 1.39). Argo CD only reads `*.yaml` here, so this README is
 never applied.
 
 vCluster Platform is served directly by Envoy: an HTTPRoute on the terminated
 `https` listener, plus a BackendTrafficPolicy that allows the HTTP upgrades
-vCluster Platform needs, plus a SecurityPolicy for CORS. There is no TLS
-passthrough and no proxy in between.
+vCluster Platform needs, plus a SecurityPolicy for CORS. TLS terminates once,
+at Envoy, with the `*.lab` wildcard certificate.
 
 ## Files
 
@@ -25,7 +25,6 @@ passthrough and no proxy in between.
 | `platform-upgrades.yaml` | Upgrade types for the Platform route |
 | `platform-cors.yaml` | CORS for the `*.tenant.lab` snooze page |
 | `fleet-observability-otlp-route.yaml` | `otel.lab` `POST /v1/metrics` to the observability connector |
-| `platform-tls-proxy.yaml` | **Unused.** The old nginx proxy, kept as a rollback path. See [Cleanup](#cleanup) |
 
 ```text
 vcp.lab   :443 --SNI--> https (Terminate)  --> vcluster-platform-https --> loft:80
@@ -155,22 +154,6 @@ kubectl -n envoy-gateway-system logs -l gateway.envoyproxy.io/owning-gateway-nam
   -c envoy --since=1h | grep -c "Duplicate entry of domain"    # 0
 ```
 
-## Cleanup
-
-`platform-tls-proxy.yaml` (nginx) and the `vcp-lab-kurtmadel-com` Certificate
-are left over from the pre-cutover setup, kept as a rollback path. Rolling back
-means re-adding the `vcp-tls` Passthrough listener and a TLSRoute to
-`loft-tls-proxy:443`, both visible in Git history before the cutover commit.
-
-Once you no longer need that:
-
-1. Delete `platform-tls-proxy.yaml` and the `vcp` Certificate from
-   `certificates.yaml`. Argo CD prunes the nginx ConfigMap, Deployment, and
-   Service.
-2. The Certificate has `Delete=false`, so remove it by hand:
-   `kubectl -n vcluster-platform delete certificate vcp-lab-kurtmadel-com` and
-   `kubectl -n vcluster-platform delete secret vcp-lab-kurtmadel-com-tls`.
-
 ## Applying this to other vCluster Platform installs
 
 The DNS-01 certs, MetalLB, and public DNS pointing at a private IP are specific
@@ -221,7 +204,8 @@ candidate edge and run the two upgrade probes from [Checking it](#checking-it):
 
 Only the cluster that hosts vCluster Platform needs the `loftHost` route.
 Connected control plane clusters (agents) dial out to it. The fleet
-`baseline/charts/envoy-gateway-config` chart still renders a `vcp-tls`
-passthrough listener when `fleet.lab.kurtmadel.com/platform-hostname` is set.
-Change it to render this route, the upgrade policy, and optional CORS instead,
-so a hub built from the fleet templates starts in this shape.
+`baseline/charts/envoy-gateway-config` chart should render this route, the
+upgrade policy, and optional CORS when `fleet.lab.kurtmadel.com/platform-hostname`
+is set, so a hub built from the fleet templates starts in this shape. Today it
+renders a TLS passthrough listener for that hostname instead; update it before
+building a hub from it.

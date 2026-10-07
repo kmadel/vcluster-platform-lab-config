@@ -1,6 +1,6 @@
 # hub-edge.yaml - Layer 1: the hub's shared edge on Envoy Gateway. GatewayClass,
 # EnvoyProxy, the "lab" Gateway and its policies, the vCluster Platform routes
-# and nginx TLS proxy, the Fleet Observability OTLP route, and the Let's Encrypt
+# and policies, the Fleet Observability OTLP route, and the Let's Encrypt
 # Certificates. All of it was applied by hand from kpi-vcluster/manifests and is
 # adopted here unchanged (kubectl diff against the live objects was clean on
 # 2026-10-07).

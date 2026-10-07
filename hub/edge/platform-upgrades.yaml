@@ -2,14 +2,10 @@
 # is websocket only, and any other Upgrade gets a local 403 (upgrade_failed).
 # This list replaces the default, so websocket is listed explicitly.
 #
-# Verified 2026-10-07 on Envoy Gateway v1.8.0 with a test route: without this
-# policy POST /coordinator/ts2021 returned 403 from Envoy; with it, vCluster
-# Platform answered (400 "missing Tailscale handshake header", the same reply
-# the nginx path gives a handshake-less probe).
-#
-# DERP added after the cutover: Tailscale's DERP client sends Upgrade: DERP
-# unless built with websocket support. The lab's nodes used the websocket form,
-# but a probe with Upgrade: DERP got 403 until this entry was added.
+# Without this policy a POST /ts2021 probe gets 403 from Envoy; with it,
+# vCluster Platform answers (400 "missing Tailscale handshake header" for a
+# handshake-less probe). Tailscale's DERP client sends Upgrade: DERP unless it
+# was built with websocket support, so DERP is listed alongside websocket.
 #
 # Do not add requestBuffer here: when it is set, Envoy Gateway ignores the
 # upgrade configuration.
