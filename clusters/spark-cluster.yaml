@@ -13,6 +13,11 @@ metadata:
       fleet-observability-collector
     cluster-collector.argocd-template-param.fleet.lab.kurtmadel.com/otlpEndpoint: >-
       https://otel.lab.kurtmadel.com
+    demo.vcluster.com/vcluster-api-gateway-class-name: eg
+    demo.vcluster.com/vcluster-api-gateway-name: spark
+    demo.vcluster.com/vcluster-api-gateway-namespace: envoy-gateway-system
+    demo.vcluster.com/vcluster-api-subdomain: spark.lab.kurtmadel.com
+    demo.vcluster.com/vcluster-tenant-subdomain: spark.lab.kurtmadel.com
   labels:
     demo.vcluster.com/shared: "true"
     fleet.lab.kurtmadel.com/baseline: 'true'
