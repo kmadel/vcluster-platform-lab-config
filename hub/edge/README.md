@@ -52,8 +52,11 @@ checkout, then push the same change.
 ## How vCluster Platform is exposed
 
 vCluster Platform serves everything on one hostname (`config.loftHost`): the
-UI, the API, the Kubernetes proxy to tenant clusters, the Tailscale coordinator
-for private nodes, and DERP. It needs three things from the edge.
+UI, the API, the Kubernetes proxy to tenant clusters, the Tailscale coordinator,
+and DERP. The Tailscale paths carry the agents of network-peered connected
+clusters (`spark-cluster`, `kubevirt-provider-cluster`, `vind-test` have
+`networkPeer: true`) as well as private nodes. It needs three things from the
+edge.
 
 ### 1. The route: `platform-routes.yaml`
 
@@ -76,8 +79,8 @@ local `403`, with `upgrade_failed` in the access log.
 | --- | --- |
 | `websocket` | UI; `kubectl exec`/`attach` on newer clients; DERP from websocket-built Tailscale clients |
 | `spdy/3.1` | `kubectl exec`/`port-forward` on older clients |
-| `tailscale-control-protocol` | Private nodes registering: `POST /ts2021` (also served at `/coordinator/ts2021`) |
-| `DERP` | Private nodes' DERP relay from standard Tailscale clients: `GET /derp` |
+| `tailscale-control-protocol` | Connected-cluster agents and private nodes registering: `POST /ts2021` (also served at `/coordinator/ts2021`) |
+| `DERP` | The DERP relay for agents and private nodes on standard Tailscale clients: `GET /derp` |
 
 The list replaces the default, which is why `websocket` is listed explicitly.
 Don't add `requestBuffer` to this policy: when it's set, Envoy Gateway ignores
@@ -95,7 +98,7 @@ any it gets from backends, so the edge is the only place they can come from.
 - **Allowed requests:** Envoy echoes the origin in
   `Access-Control-Allow-Origin`.
 - **Other origins:** Envoy adds no allow header, so the browser blocks the
-  response. Non-browser clients (kubectl, private nodes) send no `Origin` and
+  response. Non-browser clients (kubectl, agents, private nodes) send no `Origin` and
   aren't affected.
 - **`allowOrigins` format:** a list of strings. A wildcard covers one leading
   label only, and the scheme is required.
@@ -125,7 +128,7 @@ curl -s -D - -o /dev/null -X OPTIONS -H 'Origin: https://demo.tenant.lab.kurtmad
   -H 'Access-Control-Request-Method: GET' https://vcp.lab.kurtmadel.com/version | grep -i access-control
 ```
 
-How many private-node sessions Envoy is holding open right now:
+How many agent and private-node sessions Envoy is holding open right now:
 
 ```sh
 kubectl -n envoy-gateway-system port-forward <envoy-pod> 19000:19000 &
@@ -133,7 +136,7 @@ curl -s 'http://127.0.0.1:19000/stats?filter=upgrades_active' | grep https
 ```
 
 Upgraded connections appear in the access log only when they close. A healthy
-private node is therefore mostly invisible in the log, so use the stat above.
+agent or node is therefore mostly invisible in the log, so use the stat above.
 
 **Expected noise:** the Tailscale client races port 80 against 443. You'll see
 `POST /ts2021 403 upgrade_failed` with `:authority vcp.lab.kurtmadel.com:80` on
@@ -163,8 +166,9 @@ to this lab. The rest follows from what vCluster Platform needs.
 
 1. **HTTP/1.1 upgrades.**
    - Always: `websocket` and `spdy/3.1`.
-   - **If private nodes are used**, also `tailscale-control-protocol` and
-     `DERP`. The Tailscale client forces HTTP/1.1 for these.
+   - **If any connected cluster uses network peering, or any tenant cluster
+     uses private nodes**, also `tailscale-control-protocol` and `DERP`. The
+     Tailscale client forces HTTP/1.1 for these.
 2. **Long-lived streams.** No short request timeout, and no response buffering
    on watches, log follows, the map poll, or DERP.
 3. **Host and scheme forwarded.** vCluster Platform builds redirects and OIDC
@@ -174,11 +178,11 @@ to this lab. The rest follows from what vCluster Platform needs.
 5. **CORS only if a browser page on another origin calls the API.** vCluster
    Platform adds no CORS headers itself.
 
-Without private nodes, only `websocket` and `spdy/3.1` matter.
+Without network peering or private nodes, only `websocket` and `spdy/3.1` matter.
 
 ### How common edges handle it
 
-| Edge | Upgrades for private nodes | Notes |
+| Edge | Tailscale upgrades (agents, private nodes) | Notes |
 | --- | --- | --- |
 | Envoy Gateway (this setup) | `BackendTrafficPolicy.httpUpgrade`. On versions without the field, an `EnvoyPatchPolicy` on the HCM's `upgrade_configs` | Check with `kubectl explain backendtrafficpolicy.spec.httpUpgrade`. Set `timeouts.request: 0s` on the route. |
 | ingress-nginx (the chart's `ingress.enabled: true` default) | Works as is: nginx forwards any `Upgrade` | Raise `proxy-read-timeout`, `proxy-send-timeout`, and `proxy-body-size` with annotations. |

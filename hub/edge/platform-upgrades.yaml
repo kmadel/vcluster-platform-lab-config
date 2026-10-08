@@ -22,5 +22,6 @@ spec:
   httpUpgrade:
     - type: websocket                    # UI, newer kubectl exec/attach
     - type: spdy/3.1                     # older kubectl exec/port-forward
-    - type: tailscale-control-protocol   # private nodes: POST /coordinator/ts2021
-    - type: DERP                         # private nodes: GET /derp relay (non-websocket Tailscale clients)
+    # Connected-cluster agents (networkPeer: true) and private nodes:
+    - type: tailscale-control-protocol   # registering: POST /ts2021
+    - type: DERP                         # DERP relay (non-websocket Tailscale clients): GET /derp
