@@ -253,6 +253,38 @@ would also need tolerations on KubeVirt's `virt-handler`.
 Budget the GPU VM's memory request plus KubeVirt's overhead, which includes an
 extra 1 GiB whenever a VFIO device is attached.
 
+## Networking: bridge binding, not masquerade
+
+The first run on 2026-10-10 registered both VMs with INTERNAL-IP `10.0.2.2`.
+That is KubeVirt's masquerade guest address, and every masquerade VM gets it.
+With two nodes on the same IP:
+
+- konnectivity (`kubectl logs`, `exec`) dials `10.0.2.2` from the agent's VM
+  and reaches that VM's own kubelet, never the other one;
+- flannel addresses nodes by IP, so pod traffic between the VMs fails, which
+  cuts GPU-node pods off from CoreDNS (the driver container's downloads) and
+  NVSentinel off from DCGM;
+- the node-to-node VPN does not help: it advertises each node's own IP as a
+  `/32` route, and both are `10.0.2.2`.
+
+So `kvm-medium` and `kvm-gpu-rtx-2000-ada` use `bridge: {}` on the pod network.
+The guest takes its virt-launcher pod's IP from KubeVirt's DHCP, unique and
+routable across the provider cluster. Host devices already rule out live
+migration, so bridge costs nothing for these VMs. The base template's
+interface list is replaced, not merged, so the NodeType's list wins.
+
+That puts the tenant's nodes on the provider's pod network, so the tenant
+template's CIDRs must not overlap the provider's (`10.64.0.0/16` pods,
+`10.128.0.0/16` services). `private-nodes-kubevirt-static-gpu-stack` uses
+`10.244.0.0/16` and `10.96.0.0/16`. CIDRs cannot change on a running tenant
+cluster, so apply this by recreating it.
+
+**This also affects `private-nodes-kubevirt-dynamic`.** It uses masquerade
+`kvm-small` VMs with a CPU limit of up to 8, so any tenant that scales past
+one VM gets duplicate node IPs. Its single-VM tenants never notice. Fixing it
+the same way means bridge binding on `kvm-small` and new CIDRs for every
+template that uses it.
+
 ## Known gaps
 
 - **The L2 VM is untested.** UEFI with this card's BAR, the 10 GiB sizing, and

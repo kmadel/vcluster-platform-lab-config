@@ -48,7 +48,7 @@ real IOMMU, and no nested virtualization.
 | KubeVirt device plugin | KubeVirt's own (`externalResourceProvider: false`) | The device operator's own, which hands out whole NVLink partitions (`externalResourceProvider: true`) |
 | VM shapes | One: 1 GPU | One per partition size: 1, 2, 4 or 8 GPUs |
 | VM memory | 10 GiB | Hundreds of GiB to TiB, which needs hugepages and NUMA placement |
-| Tenant networking | Pod network, masquerade | RDMA NICs (ConnectX-7 on B200, ConnectX-8 on B300) as SR-IOV VFs or whole PFs |
+| Tenant networking | Provider pod network, bridge binding (masquerade gave every VM the same node IP) | RDMA NICs (ConnectX-7 on B200, ConnectX-8 on B300) as SR-IOV VFs or whole PFs |
 | Between tenants | Nothing beyond the vfio reset | vfio reset, partition reactivation, scrub, health check, quarantine |
 | Inventory | sushy-tools, which cannot see the passed-through card | Real Redfish, which reports PCIe devices |
 
@@ -87,6 +87,7 @@ The device operator handles this with `spec.nvlink`:
   partition.
 
 **Verify on B200/B300:**
+
 - The operator was built against HGX H200 (NVLink4); its only test fixture is an
   H200 partition table. Its code notes that NVLink5 differs: the NVIDIA driver
   container resets the GPUs across a Fabric Manager restart, which NVLink4 does
