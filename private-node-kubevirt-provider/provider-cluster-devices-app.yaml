@@ -1,0 +1,37 @@
+# Delivers provider-cluster/ into the kubevirt-provider-cluster tenant cluster
+# (registered in Argo CD by its Argo CD integration, connector demo-lab).
+#
+# Targeted by server URL, not by Argo CD cluster name: Platform truncates and
+# hashes the name (loft-platform-virtualcluster-kubevirt-pro-3a526c2), while the
+# URL comes straight from the project and tenant cluster names, so it survives a
+# rebuild.
+#
+# The HostDevice CRD only exists once Platform has installed the device operator,
+# which happens after the NodeProvider is set up, well after the tenant cluster
+# exists. SkipDryRunOnMissingResource plus unlimited retries lets the first sync
+# wait for it instead of failing.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubevirt-provider-cluster-devices
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+    targetRevision: main
+    path: private-node-kubevirt-provider/provider-cluster
+  destination:
+    server: https://vcp.lab.kurtmadel.com/kubernetes/project/platform/virtualcluster/kubevirt-provider-cluster
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: -1
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

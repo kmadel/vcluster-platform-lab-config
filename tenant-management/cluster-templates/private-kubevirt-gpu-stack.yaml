@@ -1,0 +1,167 @@
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterTemplate
+metadata:
+  name: private-nodes-kubevirt-static-gpu-stack
+  annotations:
+    vcluster.com/template-icon: gpu.svg
+  labels:
+    demo.vcluster.com/shared: "true"
+spec:
+  displayName: Private Nodes - KubeVirt GPU VM with NVIDIA GPU Stack
+  description: |
+    A KubeVirt VM holding the RTX 2000 Ada (passed through from the vmetal host via
+    the KubeVirt provider cluster), plus a CPU service VM, with GPU Operator and
+    NVSentinel delivered by the demo-gpu Stack. One GPU in the lab, so one tenant
+    cluster at a time. Shares the card with private-nodes-metal3-static-gpu-stack:
+    only one of the two can hold it. See
+    private-node-kubevirt-provider/gpu-passthrough.md.
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: kubernetesVersion
+      label: Kubernetes Version
+      description: |
+        Control plane Kubernetes version. Updating this value triggers a rolling upgrade of the vCluster control plane. The VM node kubelets are re-provisioned separately via the NodeClaim lifecycle.
+      options:
+        - v1.34.12
+        - v1.35.9
+        - v1.36.5
+      defaultValue: v1.36.5
+      section: Control Plane
+    - variable: cpuNodePool
+      label: CPU Service Pool Label
+      description: Value of workload.example.com/pool on CPU service workers.
+      type: string
+      required: true
+      defaultValue: cpu-services
+      section: Control Plane
+    - variable: argoProject
+      label: Argo CD Project
+      type: string
+      defaultValue: default
+      section: Argo CD
+    - variable: driverPreinstalled
+      label: NVIDIA Driver Preinstalled
+      description: Leave off. The VM boots the stock Ubuntu containerDisk, which has no
+        NVIDIA driver, so the GPU Operator installs it.
+      type: boolean
+      defaultValue: "false"
+      section: NVIDIA GPU Operator
+    - variable: certManagerPreinstalled
+      label: cert-manager Already Installed
+      description: Enable when the tenant cluster already runs cert-manager. The Stack then verifies that
+        installation instead of installing its own.
+      type: boolean
+      defaultValue: "false"
+      section: NVSentinel
+    - variable: gpuOperatorVersion
+      label: GPU Operator Version
+      type: string
+      defaultValue: v26.3.3
+      section: NVIDIA GPU Operator
+    - variable: nvsentinelVersion
+      label: NVSentinel Chart and Image Version
+      type: string
+      defaultValue: v1.13.0
+      section: NVSentinel
+  template:
+    pro:
+      enabled: true
+    helmRelease:
+      chart:
+        name: vcluster
+        repo: https://charts.loft.sh
+        version: "0.37.3"
+      values: |-
+        privateNodes:
+          enabled: true
+          vpn:
+            enabled: true
+          autoNodes:
+            - provider: kubevirt-us-va-blacksburg-dc1
+              static:
+                - name: gpu
+                  profile: '{{ if contains "--" .Values.loft.project }}gpu-compute-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}gpu-compute{{ end }}'
+                  # One RTX 2000 Ada in the lab, so one GPU VM.
+                  quantity: 1
+                  nodeTypeSelector:
+                    - property: vcluster.com/node-type
+                      value: kvm-gpu-rtx-2000-ada
+                - name: cpu
+                  profile: '{{ if contains "--" .Values.loft.project }}cpu-services-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}cpu-services{{ end }}'
+                  quantity: 1
+                  nodeTypeSelector:
+                    - property: vcluster.com/node-type
+                      value: kvm-medium
+          # VMs reach the LAN through the provider node's NIC, so the vmetal
+          # pull-through caches work here exactly as for Metal3 nodes.
+          joinNode:
+            containerd:
+              enabled: true
+              registry:
+                configPath: /etc/containerd/certs.d
+                mirrors:
+                  registry.k8s.io:
+                    hosts:
+                      - server: http://192.168.50.61:5000
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  quay.io:
+                    hosts:
+                      - server: http://192.168.50.61:5001
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  nvcr.io:
+                    hosts:
+                      - server: http://192.168.50.61:5002
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  ghcr.io:
+                    hosts:
+                      - server: http://192.168.50.61:5003
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  docker.io:
+                    hosts:
+                      - server: http://192.168.50.61:5004
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+        networking:
+          podCIDR: 10.64.0.0/16
+          serviceCIDR: 10.128.0.0/16
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
+          distro:
+            k8s:
+              version: "{{ .Values.kubernetesVersion }}"
+          statefulSet:
+            scheduling:
+              nodeSelector:
+                kubernetes.io/hostname: vmetal-w02
+        integrations:
+          argoCD:
+            enabled: true
+            # Tenant projects are "<tenant>--<name>": use that tenant's connector
+            # (demo-lab-<tenant>, lent with tenant.vcluster.com/exclusive-to).
+            # Platform projects keep the shared demo-lab.
+            connector: '{{ if contains "--" .Values.loft.project }}demo-lab-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}demo-lab{{ end }}'
+        deploy:
+          cni:
+            flannel:
+              enabled: true
+          stacks:
+            - name: gpu
+              displayName: Demo - GPU Stack
+              templateRef:
+                name: demo-gpu
+              parameters:
+                cpuNodePool: {{ .Values.cpuNodePool | quote }}
+                argoProject: {{ .Values.argoProject | quote }}
+                driverPreinstalled: {{ .Values.driverPreinstalled | toString | quote }}
+                certManagerPreinstalled: {{ .Values.certManagerPreinstalled | toString | quote }}
+                minGPUs: "1"
+                gpuOperatorVersion: {{ .Values.gpuOperatorVersion | quote }}
+                nvsentinelVersion: {{ .Values.nvsentinelVersion | quote }}

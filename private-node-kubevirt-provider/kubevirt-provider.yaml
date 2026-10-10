@@ -131,3 +131,69 @@ spec:
                         resources:
                           requests:
                             cpu: "1"
+            # CPU service workers for the GPU tenant template (cert-manager, the GPU
+            # Operator controller, NVSentinel). kvm-small's 2 GiB is too tight for
+            # that set; the provider's large hosts are 4 CPU / 8 GiB, so stay well
+            # under that.
+            - name: kvm-medium
+              displayName: KVM VM (2 CPU, 4 GiB)
+              maxCapacity: 2
+              metadata:
+                labels:
+                  tenants.demo.vcluster.com/globex: "true"
+                  tenants.demo.vcluster.com/acme: "true"
+                  topology.kubernetes.io/region: us-va-blacksburg-dc1
+              mergeVirtualMachineTemplate:
+                spec:
+                  template:
+                    spec:
+                      domain:
+                        resources:
+                          requests:
+                            memory: 4Gi
+            # The RTX 2000 Ada, passed through twice: vmetal -> provider node
+            # rack-c-u12-xlarge-gpu (libvirt hostdev behind a vIOMMU) -> this VM
+            # (KubeVirt, resource advertised by HostDevice rtx-2000-ada). One card,
+            # so maxCapacity 1. Add this only after the HostDevice reports Ready, or
+            # the VM cannot schedule and the claim ends InsufficientCapacity.
+            # See gpu-passthrough.md.
+            - name: kvm-gpu-rtx-2000-ada
+              displayName: KVM VM + RTX 2000 Ada (6 CPU, 10 GiB, 1 GPU)
+              maxCapacity: 1
+              properties:
+                # The only GPU host is a provider auto node, not a reserved host.
+                kubevirt.vcluster.com/capacity-type: on-demand
+                # GPU Operator images are about 2.9 GB, plus the driver build.
+                kubevirt.vcluster.com/root-disk-size: 60Gi
+                vcluster.com/accelerator: rtx-2000-ada
+              metadata:
+                labels:
+                  tenants.demo.vcluster.com/globex: "true"
+                  tenants.demo.vcluster.com/acme: "true"
+                  topology.kubernetes.io/region: us-va-blacksburg-dc1
+              # Use the NodeType merge, not the kubevirt.vcluster.com/merge-virtual-
+              # machine-template property: that path still reads the wrong property
+              # key (ENGCP-1412).
+              mergeVirtualMachineTemplate:
+                spec:
+                  template:
+                    spec:
+                      domain:
+                        cpu:
+                          cores: 6
+                        # UEFI maps the card's large 64-bit BAR more reliably than
+                        # SeaBIOS. The Ubuntu cloud image boots either way.
+                        firmware:
+                          bootloader:
+                            efi:
+                              secureBoot: false
+                        devices:
+                          gpus:
+                            - name: gpu1
+                              deviceName: nvidia.com/RTX_2000_Ada
+                        # The provider node has 16 GiB and 8 CPUs. This leaves room
+                        # for its kubelet, KubeVirt, and the VFIO memory overhead.
+                        resources:
+                          requests:
+                            cpu: "6"
+                            memory: 10Gi

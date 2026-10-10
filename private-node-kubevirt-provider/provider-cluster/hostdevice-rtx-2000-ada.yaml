@@ -1,0 +1,31 @@
+# Applied INTO the kubevirt-provider-cluster tenant cluster by the Argo CD
+# Application in ../provider-cluster-devices-app.yaml, not to the management
+# cluster. The parent Application (private-node-kubevirt-provider-config) uses
+# recurse: false, which is what keeps it from also applying this file.
+#
+# The vCluster device operator (deployed by the KubeVirtProviderCluster's
+# deploy.vClusterDeviceOperator) binds the selected GPU to vfio-pci on the
+# gpu-host node and adds a pciHostDevices entry to the KubeVirt CR, so KubeVirt
+# advertises the card as nvidia.com/RTX_2000_Ada.
+#
+# spec.iommu is deliberately unset. The agent picks the IOMMU kernel flag from
+# the CPU vendor, and this node is an AMD guest whose IOMMU is QEMU's emulated
+# Intel model, so it would write amd_iommu=on, reboot, and still have no IOMMU.
+# See gpu-passthrough.md.
+apiVersion: devices.vcluster.com/v1alpha1
+kind: HostDevice
+metadata:
+  name: rtx-2000-ada
+spec:
+  nodeSelector:
+    demo.vcluster.com/gpu-host: "true"
+  deviceSelector:
+    vendor: "10de"
+    # VGA function only: discovery reports display-class devices, so the audio
+    # function (22be) is never bound. If it reached this node and sits in the
+    # GPU's IOMMU group with snd_hda_intel loaded, vfio refuses the group. Keep
+    # the audio function off this node's libvirt domain (gpu-passthrough.md).
+    deviceIDs:
+      - "28b0"
+  kubevirt:
+    resourceName: nvidia.com/RTX_2000_Ada

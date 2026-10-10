@@ -31,6 +31,29 @@ spec:
                       operator: In
                       values:
                         - large
+              # The RTX 2000 Ada host (rack-c-xlarge-gpu-pool, exactly one machine).
+              # Static rather than in node-pool-1: dynamic claims skip NodeTypes that
+              # advertise an extended resource the claim does not request, and this
+              # pool advertises nvidia.com/gpu. The vCluster device operator binds
+              # the GPU to vfio-pci on this node and KubeVirt hands it to a VM.
+              # See gpu-passthrough.md.
+              static:
+                - name: gpu-host
+                  quantity: 1
+                  properties:
+                    # Never the NVIDIA image here: a driver holding the card blocks
+                    # the vfio-pci bind, and the guest that owns the GPU is the VM.
+                    vcluster.com/os-image: ubuntu-noble-bootstrap
+                  nodeLabels:
+                    kubevirt.io/schedulable: "true"
+                    machine-type.node.kubevirt.io/q35: "true"
+                    # Selected by HostDevice rtx-2000-ada (provider-cluster/).
+                    demo.vcluster.com/gpu-host: "true"
+                  nodeTypeSelector:
+                    - property: vcluster.com/profile
+                      operator: In
+                      values:
+                        - xlarge-gpu
           vpn:
             enabled: false
         networking:
