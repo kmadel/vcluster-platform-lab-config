@@ -4,8 +4,10 @@ How the lab's one NVIDIA GPU reaches a tenant cluster as a KubeVirt VM, through
 the `kubevirt-provider-cluster` KubeVirtProviderCluster and its embedded KubeVirt
 NodeProvider (`kubevirt-us-va-blacksburg-dc1`).
 
-Status as of 2026-10-10: the manifests are written and the host-side domain
-changes are done; nothing below has been run end to end yet.
+Status as of 2026-10-10: host side done; the GPU host joined
+`kubevirt-provider-cluster` and HostDevice `rtx-2000-ada` reports Ready
+(IOMMU active, GPU alone in its group, bound to vfio-pci). The GPU VM and the
+tenant cluster have not been run yet.
 
 For what changes on real HGX B200 or B300 servers, see
 [gpu-passthrough-hgx-b200-b300.md](gpu-passthrough-hgx-b200-b300.md).
@@ -78,10 +80,12 @@ domain changes only while the BMH is `available` and powered off; do not
    and `<ioapic driver='qemu'/>`. QEMU's Intel model is emulated, so it works on
    the AMD host. `caching_mode` is what lets VFIO run behind it.
 2. **Dedicated root port.** The GPU now sits on its own single-function root
-   port: index 15, `00:10.0`, bus `0x0f`. libvirt's default packs eight root
-   ports into one multifunction slot (`00:01.x`). If QEMU's root ports do not
-   expose ACS, the guest puts the whole slot in one IOMMU group with the boot
-   disk, and vfio refuses the GPU.
+   port: index 15, `00:10.0`, bus `0x0f`. This was done in case libvirt's
+   default, which packs eight root ports into one multifunction slot
+   (`00:01.x`), put the GPU in one IOMMU group with the boot disk. Observed
+   afterwards: QEMU's root ports do isolate each other (each `00:01.x` port and
+   the virtio disk have their own groups), so the default layout would likely
+   have worked too. The dedicated port is harmless.
 
 3. **Audio function detached.** The device operator only binds display-class
    devices, so the audio function (`c6:00.1`, `10de:22be`) would have stayed
@@ -147,14 +151,25 @@ kubectl get nodes -l demo.vcluster.com/gpu-host=true
 
 ### 3. Check the IOMMU inside L1, before anything else
 
+Run it detached and read the logs: with `-it`, a command this short finishes
+before kubectl attaches and the output is lost.
+
 ```bash
 NODE=$(kubectl get nodes -l demo.vcluster.com/gpu-host=true -o name | head -1)
-kubectl debug "$NODE" -it --image=ubuntu:24.04 -- chroot /host bash -c '
-  ls /sys/kernel/iommu_groups | wc -l
+kubectl debug "$NODE" --image=ubuntu:24.04 --profile=sysadmin -- chroot /host bash -c '
+  echo "groups: $(ls /sys/kernel/iommu_groups | wc -l)"
+  dmesg | grep -iE "DMAR|iommu" | head -5
+  lspci -nnk -d 10de:
   for g in /sys/kernel/iommu_groups/*; do
     for d in "$g"/devices/*; do echo "group ${g##*/}: $(lspci -nns "${d##*/}")"; done
   done | grep -B2 -A2 10de'
+sleep 15
+kubectl logs "$(kubectl get pods --sort-by=.metadata.creationTimestamp -o name | grep node-debugger | tail -1)"
 ```
+
+Observed 2026-10-10: 25 groups and a `DMAR` table with no `intel_iommu=on`
+on the command line (the noble kernel enables the Intel IOMMU by default), and
+`0f:00.0` alone in group 24, already on `vfio-pci`.
 
 - **Zero groups:** the guest kernel did not enable the Intel vIOMMU. Add
   `intel_iommu=on iommu=pt` to the node's OS image, either
@@ -224,17 +239,26 @@ any pod running `nvidia-smi`, should report `NVIDIA RTX 2000 Ada Generation`.
 | L2 GPU VM | 10 GiB, 6 CPU | Leaves room for L1's kubelet, KubeVirt, the agent, and VFIO overhead |
 | L2 CPU service VM | 4 GiB, 2 CPU | Runs on the provider's `large` hosts (4 CPU, 8 GiB). Raise it if NVSentinel does not fit. |
 
-The `gpu-host` node is not tainted, so `kvm-small` VMs from other tenants can
-also land on it and use L1 memory the GPU VM needs. Tainting it would mean
-giving KubeVirt's `virt-handler` and the GPU VM matching tolerations. That is
-not done yet.
+Every non-GPU NodeType (`kvm-small`, `kvm-small-reserved`, `kvm-medium`)
+requires `demo.vcluster.com/gpu-host` to be absent, and the GPU NodeType
+requires it. Without that, the first run on 2026-10-10 left the GPU VM
+`ErrorUnschedulable` with `Insufficient cpu` and `Insufficient memory` on the
+GPU host itself. The likely cause: the GPU tenant's own `kvm-medium` VM was
+created at the same moment and landed on the emptiest node, the GPU host.
+Platform keeps
+affinity terms from the VM template and appends its placement expressions to
+each, so the rule survives. It is affinity rather than a taint because a taint
+would also need tolerations on KubeVirt's `virt-handler`.
+
+Budget the GPU VM's memory request plus KubeVirt's overhead, which includes an
+extra 1 GiB whenever a VFIO device is attached.
 
 ## Known gaps
 
-- **The node prep is untested end to end.** The IOMMU grouping, whether the
-  noble kernel enables the Intel vIOMMU by default, and UEFI with this card's
-  BAR are all reasoned from configuration, not observed. If the L2 VM fails to
-  boot under UEFI, drop the `firmware` block from the NodeType.
+- **The L2 VM is untested.** UEFI with this card's BAR, the 10 GiB sizing, and
+  the guest driver install are reasoned from configuration, not observed. If
+  the L2 VM fails to boot under UEFI, drop the `firmware` block from the
+  NodeType.
 - **Per-claim template merge.** Use the NodeType's `mergeVirtualMachineTemplate`.
   The `kubevirt.vcluster.com/merge-virtual-machine-template` property path
   still reads the wrong property key (ENGCP-1412).

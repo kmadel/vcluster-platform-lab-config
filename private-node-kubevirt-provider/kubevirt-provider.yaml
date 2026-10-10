@@ -112,6 +112,20 @@ spec:
                   # label; the scheduler uses the capacity-type property. Label values
                   # can't contain commas, so this is just "reserved".
                   kubevirt.vcluster.com/capacity-type: reserved
+              # Off the GPU host: its 8 CPU / 16 GiB are sized for the GPU VM alone.
+              # Platform keeps template affinity terms and appends its placement
+              # expressions to each, so this survives.
+              mergeVirtualMachineTemplate:
+                spec:
+                  template:
+                    spec:
+                      affinity:
+                        nodeAffinity:
+                          requiredDuringSchedulingIgnoredDuringExecution:
+                            nodeSelectorTerms:
+                              - matchExpressions:
+                                  - key: demo.vcluster.com/gpu-host
+                                    operator: DoesNotExist
             - name: kvm-small-reserved
               displayName: KVM VM (2 vCPU, 1 CPU request, 2 GiB) reserved
               maxCapacity: 4
@@ -131,6 +145,14 @@ spec:
                         resources:
                           requests:
                             cpu: "1"
+                      # Off the GPU host (see kvm-small).
+                      affinity:
+                        nodeAffinity:
+                          requiredDuringSchedulingIgnoredDuringExecution:
+                            nodeSelectorTerms:
+                              - matchExpressions:
+                                  - key: demo.vcluster.com/gpu-host
+                                    operator: DoesNotExist
             # CPU service workers for the GPU tenant template (cert-manager, the GPU
             # Operator controller, NVSentinel). kvm-small's 2 GiB is too tight for
             # that set; the provider's large hosts are 4 CPU / 8 GiB, so stay well
@@ -151,6 +173,16 @@ spec:
                         resources:
                           requests:
                             memory: 4Gi
+                      # Off the GPU host (see kvm-small). Without this, the GPU
+                      # tenant's own CPU VM lands there first, being the emptiest
+                      # node, and leaves the GPU VM unschedulable.
+                      affinity:
+                        nodeAffinity:
+                          requiredDuringSchedulingIgnoredDuringExecution:
+                            nodeSelectorTerms:
+                              - matchExpressions:
+                                  - key: demo.vcluster.com/gpu-host
+                                    operator: DoesNotExist
             # The RTX 2000 Ada, passed through twice: vmetal -> provider node
             # rack-c-u12-xlarge-gpu (libvirt hostdev behind a vIOMMU) -> this VM
             # (KubeVirt, resource advertised by HostDevice rtx-2000-ada). One card,
@@ -178,6 +210,16 @@ spec:
                 spec:
                   template:
                     spec:
+                      # Pinned to the GPU host. The GPU resource request already
+                      # implies it; this makes the intent and any failure explicit.
+                      affinity:
+                        nodeAffinity:
+                          requiredDuringSchedulingIgnoredDuringExecution:
+                            nodeSelectorTerms:
+                              - matchExpressions:
+                                  - key: demo.vcluster.com/gpu-host
+                                    operator: In
+                                    values: ["true"]
                       domain:
                         cpu:
                           cores: 6
