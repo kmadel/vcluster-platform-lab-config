@@ -23,6 +23,16 @@ spec:
                 - name: node-pool-1
                   limits:
                     cpu: '{{ .Values.cpuLimit }}'
+                  # These nodes hold KubeVirt VMs whose root disks are local-path
+                  # volumes on the node itself. If a VM crashes and Karpenter
+                  # reclaims its now-empty node, the machine is re-imaged under the
+                  # same hostname, and the VM comes back "Running" on a blank disk
+                  # (2026-10-11, see gpu-passthrough.md). WhenEmpty never moves a
+                  # running VM; 30m gives a crashed VM time to restart in place
+                  # before its node, and its disk, is reclaimed.
+                  disruption:
+                    consolidationPolicy: WhenEmpty
+                    consolidateAfter: 30m
                   nodeLabels:
                     kubevirt.io/schedulable: "true"
                     machine-type.node.kubevirt.io/q35: "true"

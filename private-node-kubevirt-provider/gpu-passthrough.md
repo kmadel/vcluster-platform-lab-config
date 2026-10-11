@@ -329,6 +329,31 @@ template, so nothing needed recreating.
 Verified 2026-10-10 on tenant cluster `gpu-vm-tenant`: the GPU VM registered
 `10.64.1.23` and the CPU VM `10.64.4.10`, both `Ready`.
 
+## Provider node reclaim wipes VM disks
+
+On 2026-10-11 the GPU tenant's CPU VM died overnight (cause unknown; likely
+memory on its 4 CPU / 8 GiB `large` provider node). Its replacement pod stayed
+pending, so the provider cluster's Karpenter judged the node `Empty` and
+deleted it. The pending pod then claimed a new Metal3 machine: the same
+BareMetalHost, re-imaged, with the same hostname. The VM's `local-path` root
+volume still matched that hostname, its directory was recreated empty, and
+KubeVirt created a blank `disk.img`. The VM showed `Running` while booting
+nothing, its DataVolume still said `Succeeded`, and the tenant node never
+rejoined.
+
+Recovery: delete the VM's platform NodeClaim
+(`kubectl -n p-<project> delete nodeclaim <vm-name>` on the management cluster).
+That removes the VM, its DataVolume, and its volume, and the pool creates a
+fresh VM that re-imports the image.
+
+Prevention: the provider template's dynamic pool now sets
+`disruption: {consolidationPolicy: WhenEmpty, consolidateAfter: 30m}`, so
+Karpenter never moves a running VM and waits 30 minutes before reclaiming an
+empty node. It narrows the window; it does not close it. Any re-imaged
+provider node still brings back its VMs on blank disks, which is worth raising
+as a KubeVirt-provider issue: the DataVolume should not report `Succeeded`
+over an empty volume.
+
 ## Known gaps
 
 - **KubeVirt feature gates.** None were needed on KubeVirt 1.8.2: the GPU VM
