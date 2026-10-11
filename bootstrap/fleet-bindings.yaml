@@ -117,6 +117,14 @@ spec:
               - name: amd-gpu-operator
               - name: amd-dra-driver
 
+          # Replicated block storage (baseline/longhorn.yaml). A cluster opts in
+          # by listing this profile, which is the install gate: add it only once
+          # the cluster's nodes are prepared (storage/README.md). Each cluster
+          # also needs fleet.lab.kurtmadel.com/longhorn-backup-target.
+          storage-longhorn:
+            applications:
+              - name: longhorn
+
         # Escape hatch for hand-pinned bindings. Bindings should come from
         # Cluster metadata via the controller, so this stays off.
         staticBindings:

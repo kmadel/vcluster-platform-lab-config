@@ -41,6 +41,14 @@ spec:
         properties:
           kubevirt.vcluster.com/image-url: docker://quay.io/containerdisks/ubuntu:24.04
           kubevirt.vcluster.com/root-disk-size: 20Gi
+          # VM root disks on vmetal's NFS export (nfs-vm-disks, from
+          # provider-cluster-storage-app.yaml) instead of local-path on the
+          # provider node, so re-imaging a provider node no longer blanks its
+          # VMs' disks. Merged onto the provider's default DataVolume; lists
+          # replace, so accessModes is RWX only. Applies to VMs created after
+          # the change; existing VMs keep local-path until their claim is
+          # recreated. See storage/README.md.
+          kubevirt.vcluster.com/image-datavolume-template: '{"spec":{"storage":{"storageClassName":"nfs-vm-disks","accessModes":["ReadWriteMany"],"volumeMode":"Filesystem"}}}'
         kubeVirt:
           # The controller overwrites clusterRef.
           clusterRef: {}

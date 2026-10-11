@@ -24,7 +24,11 @@ metadata:
     # argocd-templates/demo-frontend.yaml). tenant-https, not the *.lab https
     # listener: tenant hostnames live under *.tenant.lab.kurtmadel.com.
     demo.vcluster.com/vcluster-api-gateway-http-listener-name: "tenant-https"
+    # Add storage-longhorn here (comma-separated) to install Longhorn, once the
+    # Pis have open-iscsi and nfs-common and the disk nodes are labeled.
+    # See storage/README.md.
     fleet.lab.kurtmadel.com/profiles: "fleet-observability-platform"
+    fleet.lab.kurtmadel.com/longhorn-backup-target: "nfs://192.168.50.61:/srv/nfs/longhorn-backups/loft"
     fleet-observability-grafana.argocd-template-param.fleet.lab.kurtmadel.com/platformHost: "vcp.lab.kurtmadel.com"
     cluster-collector.argocd-template-param.fleet.lab.kurtmadel.com/otlpEndpoint: >-
       https://otel.lab.kurtmadel.com

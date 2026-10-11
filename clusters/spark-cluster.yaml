@@ -9,8 +9,12 @@ metadata:
     # sleep mode can't count HTTPRoute traffic as activity and tenant clusters
     # here show NoSupportedGatewayClass.
     sleepmode.loft.sh/request-mirror-controller-allowlist: "gateway.envoyproxy.io/gatewayclass-controller"
+    # Add storage-longhorn here (comma-separated) to install Longhorn, once
+    # every node has open-iscsi and nfs-common, multipathd ignores Longhorn's
+    # devices, and vmetal and vmetal-w02 are labeled. See storage/README.md.
     fleet.lab.kurtmadel.com/profiles: >-
       fleet-observability-collector
+    fleet.lab.kurtmadel.com/longhorn-backup-target: "nfs://192.168.50.61:/srv/nfs/longhorn-backups/spark"
     cluster-collector.argocd-template-param.fleet.lab.kurtmadel.com/otlpEndpoint: >-
       https://otel.lab.kurtmadel.com
     demo.vcluster.com/vcluster-api-gateway-class-name: eg

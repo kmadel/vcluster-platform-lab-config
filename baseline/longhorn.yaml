@@ -1,0 +1,62 @@
+# longhorn.yaml - replicated block storage, one template for every cluster that
+# opts in. See storage/README.md.
+#
+# Delivered by the fleet: a cluster gets this app when its Cluster sheet in
+# clusters/ lists the storage-longhorn profile in fleet.lab.kurtmadel.com/profiles.
+# That profile entry IS the install gate. Add it only after the cluster's nodes
+# have open-iscsi and nfs-common and its disk nodes are labeled (storage/README.md),
+# because this template syncs automatically.
+#
+# Per-cluster values come off the Cluster's annotations, the metallb-config
+# pattern: fleet.lab.kurtmadel.com/longhorn-backup-target is the cluster's own
+# subdirectory on vmetal's NFS export, so two clusters never share a backupstore.
+#
+# Disks only on nodes labeled node.longhorn.io/create-default-disk=true. The
+# manager still runs on every node, which is what lets a pod anywhere attach a
+# volume, so every node needs the prerequisites, not only the disk nodes.
+#
+# Not the default StorageClass: local-path stays the default, and a workload opts
+# in with storageClassName: longhorn.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: longhorn
+spec:
+  displayName: "Longhorn"
+  owner:
+    team: loft-admins
+  template:
+    spec:
+      project: default
+      source:
+        repoURL: https://charts.longhorn.io
+        chart: longhorn
+        targetRevision: 1.13.0
+        helm:
+          # Required, as in metallb.yaml: without it the release takes the
+          # generated Application name.
+          releaseName: longhorn
+          # Rendered by the platform per target Cluster; keep the {{ }} literal.
+          values: |
+            # The chart's own guidance for Argo CD and other GitOps installs.
+            preUpgradeChecker:
+              jobEnabled: false
+            persistence:
+              defaultClass: false
+              # Two replicas: survives losing a node without tripling writes.
+              defaultClassReplicaCount: 2
+            defaultSettings:
+              createDefaultDiskLabeledNodes: true
+              defaultReplicaCount: '{"v1":"2","v2":"2"}'
+            defaultBackupStore:
+              backupTarget: '{{ index .Values.loft.clusterAnnotations "fleet.lab.kurtmadel.com/longhorn-backup-target" }}'
+      destination:
+        namespace: longhorn-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          # Longhorn's CRDs exceed the annotation size client-side apply needs.
+          - ServerSideApply=true

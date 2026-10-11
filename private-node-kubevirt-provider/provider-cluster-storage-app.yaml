@@ -1,0 +1,50 @@
+# Installs the NFS CSI driver into kubevirt-provider-cluster, with a StorageClass
+# for KubeVirt VM root disks on vmetal's NFS export. See storage/README.md.
+#
+# Why: VM root disks on local-path live on the provider node's own disk. When
+# that node is reclaimed and Metal3 re-images it, the VM comes back on a blank
+# disk (2026-10-11, gpu-passthrough.md). On NFS the disk lives on a dedicated
+# drive on vmetal instead, so a VM restarts on any provider node with its disk
+# intact.
+#
+# Same destination and pattern as provider-cluster-devices-app.yaml: targeted by
+# server URL, which survives a rebuild of the provider cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubevirt-provider-cluster-storage
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
+    chart: csi-driver-nfs
+    targetRevision: 4.13.5
+    helm:
+      releaseName: csi-driver-nfs
+      valuesObject:
+        storageClass:
+          create: true
+          name: nfs-vm-disks
+          parameters:
+            server: 192.168.50.61
+            share: /srv/nfs/kubevirt-disks
+          # A VM's disk is deleted with its NodeClaim: tenant nodes are
+          # disposable, and a new claim re-imports the image.
+          reclaimPolicy: Delete
+          volumeBindingMode: Immediate
+          mountOptions:
+            - nfsvers=4.1
+  destination:
+    server: https://vcp.lab.kurtmadel.com/kubernetes/project/platform/virtualcluster/kubevirt-provider-cluster
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: -1
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
