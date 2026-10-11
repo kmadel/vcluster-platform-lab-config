@@ -4,10 +4,13 @@ How the lab's one NVIDIA GPU reaches a tenant cluster as a KubeVirt VM, through
 the `kubevirt-provider-cluster` KubeVirtProviderCluster and its embedded KubeVirt
 NodeProvider (`kubevirt-us-va-blacksburg-dc1`).
 
-Status as of 2026-10-10: host side done; the GPU host joined
-`kubevirt-provider-cluster` and HostDevice `rtx-2000-ada` reports Ready
-(IOMMU active, GPU alone in its group, bound to vfio-pci). The GPU VM and the
-tenant cluster have not been run yet.
+Status: **working end to end, 2026-10-10.** Tenant cluster `gpu-vm-tenant`
+(from `private-nodes-kubevirt-static-gpu-stack`) ran the whole `demo-gpu`
+Stack to Healthy: cert-manager, GPU Operator with the containerized driver,
+the `gpuready` and `dcgmready` gates, the CUDA smoke test, and NVSentinel.
+The first attempt needed two fixes, both now in this repo: keep CPU VMs off
+the GPU host (affinity), and bridge binding instead of masquerade (unique node
+IPs). Both are described below.
 
 For what changes on real HGX B200 or B300 servers, see
 [gpu-passthrough-hgx-b200-b300.md](gpu-passthrough-hgx-b200-b300.md).
@@ -253,6 +256,45 @@ would also need tolerations on KubeVirt's `virt-handler`.
 Budget the GPU VM's memory request plus KubeVirt's overhead, which includes an
 extra 1 GiB whenever a VFIO device is attached.
 
+## Measured inside the L2 VM
+
+Run 2026-10-10 on tenant cluster `gpu-vm-tenant`, from inside the VM that holds
+the card (two layers of passthrough below it).
+
+| What | Result | How |
+| --- | --- | --- |
+| Card and driver | RTX 2000 Ada Generation, driver 580.126.20, CUDA 13.0 | `nvidia-smi` in the driver container |
+| VRAM | 16,380 MiB | `nvidia-smi` |
+| BAR1 | 16,384 MiB, the full VRAM | `nvidia-smi -q`. Resizable BAR survives both layers, which is what the UEFI firmware on the NodeType is for |
+| PCIe link | x4 of the card's x8, the OCuLink dock's width. Reports Gen 1 at idle (`P8` downshifts the link) | `nvidia-smi -q` |
+| Host to GPU | 6.69 GB/s | `dcgmi diag -r pcie` |
+| GPU to host | 6.59 GB/s | same |
+| Bidirectional | 11.27 GB/s | same |
+| Latency | 1.71 µs host to GPU, 1.64 µs GPU to host | same |
+| FP32 compute | 6,926 GFLOP/s, about 58% of the ~12 TFLOPS peak | CUDA n-body sample, `-benchmark -numbodies=262144` |
+| Stress | `targeted_stress` Pass | `dcgmi diag -r targeted_stress` |
+
+PCIe Gen4 x4 is about 7.9 GB/s raw, so 6.6 to 6.7 GB/s each way is what such a
+link delivers in practice. The two passthrough layers add no measurable
+bandwidth cost. n-body is not a peak-FLOPS test (its inner loop mixes square
+roots and divides with the multiply-adds), so about 58% of peak is a normal
+ratio rather than a passthrough tax. NVIDIA also notes that its samples are not
+calibrated benchmarks.
+
+Reproduce, against the tenant cluster:
+
+```bash
+kubectl -n gpu-operator exec ds/nvidia-driver-daemonset -c nvidia-driver-ctr -- nvidia-smi
+kubectl -n gpu-operator exec ds/nvidia-dcgm -c nvidia-dcgm-ctr -- dcgmi diag -r pcie -v
+```
+
+For n-body, run `nvcr.io/nvidia/k8s/cuda-sample:nbody-cuda11.7.1` with args
+`nbody -gpu -benchmark -numbodies=262144`, requesting `nvidia.com/gpu: 1`, with
+`runtimeClassName: nvidia`, the `nvidia.com/gpu` toleration, and a
+`workload.example.com/pool: gpu-compute` node selector. There is no CUDA 12
+n-body tag in that repository, but the 11.7 build runs on this card (compute
+capability 8.9). It only mislabels the architecture as "Ampere" in its output.
+
 ## Networking: bridge binding, not masquerade
 
 The first run on 2026-10-10 registered both VMs with INTERNAL-IP `10.0.2.2`.
@@ -267,30 +309,35 @@ With two nodes on the same IP:
 - the node-to-node VPN does not help: it advertises each node's own IP as a
   `/32` route, and both are `10.0.2.2`.
 
-So `kvm-medium` and `kvm-gpu-rtx-2000-ada` use `bridge: {}` on the pod network.
-The guest takes its virt-launcher pod's IP from KubeVirt's DHCP, unique and
-routable across the provider cluster. Host devices already rule out live
-migration, so bridge costs nothing for these VMs. The base template's
-interface list is replaced, not merged, so the NodeType's list wins.
+So the provider's base VM template uses `bridge: {}` on the pod network, and
+every NodeType inherits it. The guest takes its virt-launcher pod's IP from
+KubeVirt's DHCP, unique and routable across the provider cluster. A NodeType
+that sets its own `interfaces` list replaces the base one (lists are replaced,
+not merged), so a new NodeType should leave `interfaces` alone. The trade-off:
+bridge binding on the pod network rules out live migration, which the GPU VM
+could not do anyway, and which the CPU VMs' `local-path` root disks already
+prevented.
 
-That puts the tenant's nodes on the provider's pod network, so the tenant
-template's CIDRs must not overlap the provider's (`10.64.0.0/16` pods,
-`10.128.0.0/16` services). `private-nodes-kubevirt-static-gpu-stack` uses
-`10.244.0.0/16` and `10.96.0.0/16`. CIDRs cannot change on a running tenant
-cluster, so apply this by recreating it.
+That puts tenant nodes on the provider's pod network, so every tenant template
+using this provider must keep its CIDRs off the provider's (`10.64.0.0/16`
+pods, `10.128.0.0/16` services). Both `private-nodes-kubevirt-static-gpu-stack`
+and `private-nodes-kubevirt-dynamic` use `10.244.0.0/16` and `10.96.0.0/16`.
+CIDRs cannot change on a running tenant cluster, so an existing tenant takes
+the change by being recreated. On 2026-10-10 no tenant used the dynamic
+template, so nothing needed recreating.
 
-**This also affects `private-nodes-kubevirt-dynamic`.** It uses masquerade
-`kvm-small` VMs with a CPU limit of up to 8, so any tenant that scales past
-one VM gets duplicate node IPs. Its single-VM tenants never notice. Fixing it
-the same way means bridge binding on `kvm-small` and new CIDRs for every
-template that uses it.
+Verified 2026-10-10 on tenant cluster `gpu-vm-tenant`: the GPU VM registered
+`10.64.1.23` and the CPU VM `10.64.4.10`, both `Ready`.
 
 ## Known gaps
 
-- **The L2 VM is untested.** UEFI with this card's BAR, the 10 GiB sizing, and
-  the guest driver install are reasoned from configuration, not observed. If
-  the L2 VM fails to boot under UEFI, drop the `firmware` block from the
-  NodeType.
+- **KubeVirt feature gates.** None were needed on KubeVirt 1.8.2: the GPU VM
+  was admitted with an empty gate list. Step 5 still applies to older
+  KubeVirt versions.
+- **No bare-metal baseline.** The measurements below have nothing on this card
+  without the two passthrough layers to compare against. That would take
+  provisioning `rack-c-u12-xlarge-gpu` directly to a Metal3 GPU tenant and
+  rerunning them.
 - **Per-claim template merge.** Use the NodeType's `mergeVirtualMachineTemplate`.
   The `kubevirt.vcluster.com/merge-virtual-machine-template` property path
   still reads the wrong property key (ENGCP-1412).

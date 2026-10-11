@@ -89,9 +89,17 @@ spec:
                     cpu:
                       cores: 2
                     devices:
+                      # Bridge, not masquerade, on the pod network: the guest takes
+                      # its virt-launcher pod's IP. Masquerade gives every VM
+                      # 10.0.2.2, so a tenant cluster with more than one VM has
+                      # duplicate node IPs and no pod traffic between its nodes.
+                      # Every tenant template using this provider must keep its pod
+                      # and service CIDRs off the provider's 10.64.0.0/16 and
+                      # 10.128.0.0/16. NodeType merges keep this interface unless
+                      # they set their own interfaces list (lists are replaced).
                       interfaces:
                         - name: default
-                          masquerade: {}
+                          bridge: {}
                     resources:
                       requests:
                         cpu: "2"
@@ -170,16 +178,6 @@ spec:
                   template:
                     spec:
                       domain:
-                        # Bridge, not masquerade, on the pod network: the guest takes
-                        # its virt-launcher pod's IP. Masquerade gives every VM
-                        # 10.0.2.2, so a multi-VM tenant cluster has duplicate node
-                        # IPs and no pod traffic between its nodes. Any tenant
-                        # template using this type must keep its pod and service
-                        # CIDRs off the provider's 10.64.0.0/16 and 10.128.0.0/16.
-                        devices:
-                          interfaces:
-                            - name: default
-                              bridge: {}
                         resources:
                           requests:
                             memory: 4Gi
@@ -243,12 +241,6 @@ spec:
                           gpus:
                             - name: gpu1
                               deviceName: nvidia.com/RTX_2000_Ada
-                          # Bridge on the pod network for a unique node IP (see
-                          # kvm-medium). Host devices already rule out live
-                          # migration, so bridge costs nothing here.
-                          interfaces:
-                            - name: default
-                              bridge: {}
                         # The provider node has 16 GiB and 8 CPUs. This leaves room
                         # for its kubelet, KubeVirt, and the VFIO memory overhead.
                         resources:

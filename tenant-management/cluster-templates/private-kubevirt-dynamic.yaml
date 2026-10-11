@@ -32,9 +32,14 @@ spec:
                       value: '{{ .Values.nodeType }}'
                   limits:
                     cpu: '{{ .Values.cpuLimit }}'
+        # KubeVirt NodeTypes use bridge binding on the provider cluster's pod
+        # network, so each node's IP is a provider pod IP (10.64.0.0/16). These
+        # ranges must not overlap the provider's pod or service CIDRs
+        # (10.64.0.0/16, 10.128.0.0/16). Changing them needs a new tenant
+        # cluster, not an upgrade.
         networking:
-          podCIDR: 10.64.0.0/16
-          serviceCIDR: 10.128.0.0/16
+          podCIDR: 10.244.0.0/16
+          serviceCIDR: 10.96.0.0/16
         controlPlane:
           backingStore:
             etcd:
