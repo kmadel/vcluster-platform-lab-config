@@ -11,8 +11,8 @@ and are not covered here.
 
 Confidence: the vCluster Platform and device operator behavior below comes from
 reading their code. The hardware statements about B200 and B300 come from
-NVIDIA's public material and the NodeShare PoV notes; anything marked
-**verify** has not been checked against a real board.
+NVIDIA's public material; anything marked **verify** has not been checked
+against a real board.
 
 ## Topology side by side
 
@@ -175,8 +175,7 @@ The lab's VMs use the pod network. Real tenants on B200/B300 need the RDMA
 fabric, as SR-IOV VFs bound to vfio-pci or as whole PFs, with VLAN or segment
 isolation, anti-spoofing, and NUMA locality to the GPUs. That is the SR-IOV
 Network Operator's job, not the device operator's: SR-IOV was removed from the
-operator, which keeps only the `Bridge` CRD for L2 attachments. The NodeShare
-PoV's SR-IOV contract covers the details.
+operator, which keeps only the `Bridge` CRD for L2 attachments.
 
 ### Between one tenant and the next
 
@@ -291,9 +290,8 @@ The cost is granularity: the smallest tenant is eight GPUs.
 | Multi-GPU confidential computing | Whole server, Protected PCIe left on |
 | Sharing inside one GPU | Neither: MIG inside a VM that owns a whole GPU, or vGPU (licensed, out of scope here) |
 
-The NodeShare PoV takes the same position: if a board cannot show clean IOMMU
-groups, deterministic reset, and a supported partition model, offer it as a
-whole server.
+The rule of thumb: if a board cannot show clean IOMMU groups, deterministic
+reset, and a supported partition model, offer it as a whole server.
 
 ## Before claiming per-GPU tenancy on B200 or B300
 

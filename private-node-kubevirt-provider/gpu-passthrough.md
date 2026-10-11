@@ -54,7 +54,8 @@ operator, which happens after the NodeProvider is set up, well after the tenant
 cluster is created. The alternatives were weighed and rejected:
 
 - **`experimental.deploy` manifests in the provider template.** Any edit changes
-  the vCluster Helm values, which restarts the provider cluster's control plane.
+  the provider cluster's vCluster values, so a one-object change rides on the
+  whole tenant cluster's configuration rollout.
 - **`spec.template.objects` on the provider template.** Works, since Platform
   retries an apply that fails on a missing CRD, but the instance shows
   `AppsAndObjectsSynced=False` until then. Objects apply from the template
@@ -134,10 +135,13 @@ last step.
 This applies three things at once: the static pool, the two NodeTypes, and the
 devices Application.
 
-The template change re-renders the provider cluster's vCluster Helm values,
-which **restarts its control plane**. VMs keep running; their NodeClaims and
-the KubeVirt API pause briefly. It is a non-parameter change, so it reaches the
-existing instance without a template sync.
+The template change re-renders the provider cluster's vCluster values. It is
+a non-parameter change, so it reaches the existing instance without a template
+sync. Observed 2026-10-11 for a pool `disruption` change: the control plane
+pod did not restart, and the generated Karpenter NodePool picked up the new
+settings within a minute. Right after a sync, Argo CD can briefly show the
+Platform objects `OutOfSync` while Platform's API catches up; a later refresh
+shows them Synced.
 
 ### 2. The GPU host joins the provider cluster
 
