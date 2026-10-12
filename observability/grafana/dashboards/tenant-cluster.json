@@ -118,7 +118,7 @@
       "type": "stat",
       "id": 2,
       "title": "Control plane cluster",
-      "description": "The control plane cluster this tenant cluster runs on now, from the label the Write Gateway stamps on every write. Changes from loft-cluster (AKS) to gke when the tenant cluster moves.",
+      "description": "The control plane cluster this tenant cluster runs on now, from vcluster_platform_hosted_on, which the Write Gateway stamps on every tenant cluster write. Changes from loft-cluster (AKS) to gke when the tenant cluster moves.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -135,9 +135,9 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_cluster) (k8s_pod_phase{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"})",
+          "expr": "max by (vcluster_platform_hosted_on) (k8s_pod_phase{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"})",
           "refId": "A",
-          "legendFormat": "{{vcluster_platform_cluster}}",
+          "legendFormat": "{{vcluster_platform_hosted_on}}",
           "instant": true,
           "range": false
         }
@@ -400,9 +400,9 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count by (vcluster_platform_cluster) (k8s_pod_phase{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"})",
+          "expr": "count by (vcluster_platform_hosted_on) (k8s_pod_phase{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"})",
           "refId": "A",
-          "legendFormat": "{{vcluster_platform_cluster}}"
+          "legendFormat": "{{vcluster_platform_hosted_on}}"
         }
       ],
       "fieldConfig": {
