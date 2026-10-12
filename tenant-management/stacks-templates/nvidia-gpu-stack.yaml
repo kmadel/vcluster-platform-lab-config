@@ -179,7 +179,9 @@ spec:
           watchAPIGroup: apps
           watchResources: daemonsets
           capacityMin: '0'
-          contractName: ''
+          # Own name, never '': Platform drops an empty parameter and the template's
+          # default (gpu-stack-contract) applies, so two gates would overwrite one ConfigMap.
+          contractName: dcgm-ready-contract
     # Runs alongside nvsentinel: both need only the gate to have passed. The sample
     # occupies one GPU for the few seconds it takes, and proves the GPU computes rather
     # than only that the scheduler advertised it.

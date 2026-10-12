@@ -1,0 +1,55 @@
+# longhorn-ui.yaml - the loft cluster's Longhorn UI at
+# https://longhorn.apps.lab.kurtmadel.com, behind basic auth.
+#
+# The Longhorn UI has no authentication of its own: anyone who reaches it can
+# delete volumes and backups. So the route ships with a SecurityPolicy, and the
+# credentials Secret is created out of band, never in Git (this repo is mirrored
+# publicly). Create it BEFORE pushing this file:
+#
+#   htpasswd -nbs admin '<password>' > /tmp/.htpasswd     # -s: Envoy accepts SHA only
+#   kubectl --context vcluster-platform_loft-cluster -n longhorn-system \
+#     create secret generic longhorn-ui-basic-auth --from-file=.htpasswd=/tmp/.htpasswd
+#   rm /tmp/.htpasswd
+#
+# Same Gateway and listener as Argo CD and Forgejo: lab / apps-https, which
+# already serves the *.apps.lab.kurtmadel.com wildcard certificate.
+#
+# Later: replace basicAuth with oidc against vCluster Platform as the OIDC
+# provider, once that is enabled in the Platform config. See storage/README.md.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: longhorn-ui
+  namespace: longhorn-system
+spec:
+  hostnames:
+    - longhorn.apps.lab.kurtmadel.com
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: lab
+      namespace: envoy-gateway-system
+      sectionName: apps-https
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - kind: Service
+          name: longhorn-frontend
+          port: 80
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: longhorn-ui-basic-auth
+  namespace: longhorn-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: longhorn-ui
+  basicAuth:
+    users:
+      name: longhorn-ui-basic-auth

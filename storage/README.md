@@ -197,6 +197,16 @@ kubectl --context $L -n longhorn-system get backuptargets.longhorn.io
 Every pod Running, the labeled nodes showing a disk, and the `default` backup
 target `Available`.
 
+### UI
+
+`infrastructure/longhorn-ui/longhorn-ui.yaml` publishes the loft cluster's UI
+at `https://longhorn.apps.lab.kurtmadel.com` on the `lab` Gateway's
+`apps-https` listener, behind Envoy Gateway basic auth. The Longhorn UI has no
+login of its own and can delete volumes and backups, so create the
+`longhorn-ui-basic-auth` Secret first (the file's header has the commands; it
+stays out of Git). Platform-as-OIDC-provider single sign-on can replace basic
+auth once it is enabled in the Platform config.
+
 ### What to move
 
 Moving a volume is a separate decision per workload. A StatefulSet's volume
