@@ -1,0 +1,24 @@
+# observability-grafana.yaml - the Loki datasource and the Humana tenant cluster
+# dashboard (uid humana-tenant-cluster) for the bundled Fleet Observability
+# Grafana at https://vcp.lab.kurtmadel.com/grafana/. See
+# observability/grafana/kustomization.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability-grafana
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+    targetRevision: main
+    path: observability/grafana
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vcluster-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

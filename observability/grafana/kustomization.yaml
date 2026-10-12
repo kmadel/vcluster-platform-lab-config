@@ -1,0 +1,22 @@
+# Loki datasource and the tenant cluster dashboard for the bundled Grafana,
+# whose sidecars load every ConfigMap labelled grafana_dashboard or
+# grafana_datasource in vcluster-platform. Applied by
+# bootstrap/observability-grafana.yaml.
+#
+# dashboards/tenant-cluster.json is a copy of the Humana demo's
+# (loft-demos/ce-demo-humana, observability/aks/dashboards/); edit it there and
+# copy it back so the two don't drift.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - loki-datasource.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: grafana-dashboard-tenant-cluster
+    namespace: vcluster-platform
+    files:
+      - dashboards/tenant-cluster.json
+    options:
+      labels:
+        grafana_dashboard: "1"

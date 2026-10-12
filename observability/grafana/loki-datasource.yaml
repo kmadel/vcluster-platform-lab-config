@@ -1,0 +1,22 @@
+# Loki for the bundled Grafana. Fixed uid, so the tenant dashboard can name it.
+# Unscoped: every Grafana user who can open a dashboard can read every log line
+# (see the walkthrough on log isolation).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ds-loki
+  namespace: vcluster-platform
+  labels:
+    grafana_datasource: "1"
+data:
+  loki.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki.observability.svc.cluster.local:3100
+        editable: false
+        jsonData:
+          maxLines: 1000

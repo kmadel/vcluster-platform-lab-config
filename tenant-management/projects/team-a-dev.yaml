@@ -1,0 +1,33 @@
+# Lab rehearsal of the Humana demo's observability segment
+# (loft-demos/ce-demo-humana, docs/walkthrough-observability.md). Same project
+# and tenant cluster names as Humana, so the dashboard links carry over.
+#
+# No namespacePattern on purpose: host namespaces get the Platform default
+# loft-<project>-v-<name>, like Humana's AKS, unlike this lab's other projects
+# (p-<project>-v-<name>).
+kind: Project
+apiVersion: management.loft.sh/v1
+metadata:
+  name: team-a-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  displayName: Team A, development (Humana rehearsal)
+  owner:
+    user: admin
+  allowedClusters:
+    - name: loft-cluster
+  allowedTemplates:
+    - kind: VirtualClusterTemplate
+      group: storage.loft.sh
+      name: stacks-demo-app-tenant
+    # deploy.stacks in that template creates a StackInstance in this project.
+    - kind: StackTemplate
+      group: storage.loft.sh
+      name: demo-backend-frontend
+  access:
+    - name: loft-admin-access
+      verbs: [get, update, patch, delete]
+      subresources: ['*']
+      users: [admin]

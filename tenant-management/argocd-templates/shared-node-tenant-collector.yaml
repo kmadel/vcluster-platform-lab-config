@@ -1,0 +1,191 @@
+# Fleet Observability collector for shared-node tenant clusters. Bound to every
+# rendered VCI without private nodes by the tenant-observability-shared-nodes
+# FleetProfile (bootstrap/fleet-bindings.yaml); the fleet-binding-controller
+# writes the otel-otlp-auth Secret it mounts.
+#
+# Replaces the hand-applied July version of this template (same name). Kept in
+# step with the Humana demo copy (loft-demos/ce-demo-humana,
+# gitops/management/observability/shared-node-tenant-collector.yaml):
+#
+#   - no kube-state-metrics; the k8s_cluster receiver carries object state
+#   - kube-apiserver and vcluster-etcd scrape jobs through the tenant API server
+#     (4.13's bundled cluster-collector has the etcd job too, but its DaemonSet
+#     doesn't fit shared nodes)
+#
+# Pod CPU and memory for these tenants come from the bundled cluster-collector
+# on loft-cluster (cAdvisor, by host namespace), not from this collector.
+apiVersion: storage.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: shared-node-tenant-collector
+spec:
+  displayName: "Fleet Observability: shared-node tenant collector"
+  description: >-
+    One OpenTelemetry Deployment inside a shared-node tenant cluster: Kubernetes object state, the tenant API server and its embedded etcd, pushed to the Fleet Observability Write Gateway with the tenant cluster's scope.
+  owner:
+    user: admin
+  parameters:
+    - variable: destinationNamespace
+      label: Destination Namespace
+      type: string
+      required: true
+      defaultValue: observability
+    - variable: project
+      label: Argo CD Project
+      type: string
+      required: true
+      defaultValue: default
+    - variable: otlpEndpoint
+      label: OTLP/HTTP endpoint
+      description: Write Gateway behind the lab Envoy gateway (hub/edge/fleet-observability-otlp-route.yaml).
+      type: string
+      required: true
+      defaultValue: https://otel.lab.kurtmadel.com
+    - variable: otlpInsecureSkipVerify
+      label: Skip OTLP TLS verification
+      description: otel.lab.kurtmadel.com serves a Let's Encrypt certificate.
+      type: boolean
+      defaultValue: "false"
+  template:
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .Values.destinationNamespace }}'
+      project: '{{ .Values.project }}'
+      syncPolicy:
+        automated:
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      source:
+        repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+        chart: opentelemetry-collector
+        targetRevision: 0.162.0 # same chart as the bundled cluster-collector
+        helm:
+          releaseName: otel-tenant
+          values: |
+            {{- $loft := .Values.loft | default dict }}
+            {{- if or (not $loft.project) (not $loft.name) }}
+            {{- fail "shared-node-tenant-collector: the destination must be a tenant cluster" }}
+            {{- end }}
+            mode: deployment
+            replicaCount: 1
+            fullnameOverride: otel-tenant
+
+            image:
+              repository: otel/opentelemetry-collector-contrib
+
+            ports:
+              otlp: {enabled: false}
+              otlp-http: {enabled: false}
+              jaeger-compact: {enabled: false}
+              jaeger-thrift: {enabled: false}
+              jaeger-grpc: {enabled: false}
+              zipkin: {enabled: false}
+            service:
+              enabled: false             # push only
+
+            # k8s_cluster receiver: pods, containers, deployments and nodes as the
+            # tenant sees them (k8s_pod_phase, k8s_container_restarts, ...).
+            presets:
+              clusterMetrics:
+                enabled: true
+
+            # The tenant API server authorizes /metrics/etcd by SubjectAccessReview
+            # against the nonResourceURL, like /metrics.
+            clusterRole:
+              create: true
+              rules:
+                - apiGroups: ["discovery.k8s.io"]
+                  resources: ["endpointslices"]
+                  verbs: ["get", "list", "watch"]
+                - nonResourceURLs: ["/metrics", "/metrics/etcd"]
+                  verbs: ["get"]
+
+            # Token from a metrics-writer access key scoped to this tenant cluster,
+            # created out of band by scripts/fleet-writer-keys.sh. The pod waits
+            # for it.
+            extraVolumes:
+              - name: otlp-auth
+                secret:
+                  secretName: otel-otlp-auth
+            extraVolumeMounts:
+              - name: otlp-auth
+                mountPath: /etc/otel/auth
+                readOnly: true
+
+            config:
+              receivers:
+                prometheus:
+                  config:
+                    scrape_configs:
+                      - job_name: kube-apiserver
+                        scheme: https
+                        tls_config:
+                          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                        authorization:
+                          type: Bearer
+                          credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                        kubernetes_sd_configs:
+                          - role: endpointslice
+                        relabel_configs:
+                          - source_labels:
+                              - __meta_kubernetes_namespace
+                              - __meta_kubernetes_service_name
+                              - __meta_kubernetes_endpointslice_port_name
+                            regex: default;kubernetes;https
+                            action: keep
+
+                      # Embedded etcd. vCluster 0.37 serves it on the same HTTPS
+                      # endpoint as the API server and proxies it to etcd's metrics
+                      # listener on 127.0.0.1:2381 inside the control plane pod.
+                      # Answers 404 unless controlPlane.backingStore.etcd.embedded
+                      # is enabled (dev-shared and prod-shared set it).
+                      - job_name: vcluster-etcd
+                        metrics_path: /metrics/etcd
+                        scheme: https
+                        tls_config:
+                          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                        authorization:
+                          type: Bearer
+                          credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                        kubernetes_sd_configs:
+                          - role: endpointslice
+                        relabel_configs:
+                          - source_labels:
+                              - __meta_kubernetes_namespace
+                              - __meta_kubernetes_service_name
+                              - __meta_kubernetes_endpointslice_port_name
+                            regex: default;kubernetes;https
+                            action: keep
+
+              processors:
+                memory_limiter:
+                  check_interval: 1s
+                  limit_percentage: 75
+                  spike_limit_percentage: 15
+                batch:
+                  send_batch_size: 10000
+                  timeout: 10s
+
+              exporters:
+                otlp_http:
+                  endpoint: {{ .Values.otlpEndpoint | quote }}
+                  headers:
+                    X-Vcluster-Platform-Project: {{ $loft.project | quote }}
+                    X-Vcluster-Platform-Instance: {{ $loft.name | quote }}
+                    Authorization: "${file:/etc/otel/auth/authorization}"
+            {{- if .Values.otlpInsecureSkipVerify }}
+                  tls:
+                    insecure_skip_verify: true
+            {{- end }}
+
+              service:
+                pipelines:
+                  metrics:
+                    receivers: [k8s_cluster, prometheus]
+                    processors: [memory_limiter, batch]
+                    exporters: [otlp_http]
+                  logs: null
+                  traces: null

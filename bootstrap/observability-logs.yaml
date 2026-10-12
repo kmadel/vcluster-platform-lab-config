@@ -1,0 +1,170 @@
+# observability-logs.yaml - Loki and a log collector on loft-cluster, the lab
+# rehearsal of the Humana demo's "Loki in place of Splunk"
+# (loft-demos/ce-demo-humana, gitops/management/observability/logs.yaml).
+#
+# Not Fleet Observability: its pipeline is metrics only. One OpenTelemetry
+# DaemonSet tails every pod's log file and pushes OTLP to Loki. Tenant clusters
+# on shared nodes need nothing of their own: each one's pods run in its host
+# namespace, which the Platform labels with loft.sh/project and
+# loft.sh/vcluster-instance-name, and the collector copies those onto every line.
+#
+# Values match the Humana copy except Loki's volume (10Gi on local-path) and
+# k8s.cluster.name. Grafana's Loki datasource and the tenant dashboard are in
+# bootstrap/observability-grafana.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://grafana-community.github.io/helm-charts
+    chart: loki
+    targetRevision: 18.13.5          # Loki 3.7.8
+    helm:
+      releaseName: loki
+      values: |
+        deploymentMode: SingleBinary
+        loki:
+          auth_enabled: false        # one tenant; see the walkthrough on log isolation
+          commonConfig:
+            replication_factor: 1
+          storage:
+            type: filesystem
+          schemaConfig:
+            configs:
+              - from: "2026-01-01"
+                store: tsdb
+                object_store: filesystem
+                schema: v13
+                index:
+                  prefix: loki_index_
+                  period: 24h
+          limits_config:
+            allow_structured_metadata: true
+            # Promote the tenant's project and name, and the cluster, to stream
+            # labels (vcluster_project, vcluster_instance, k8s_cluster_name).
+            # The tenant-side namespace and pod stay structured metadata.
+            otlp_config:
+              resource_attributes:
+                attributes_config:
+                  - action: index_label
+                    attributes:
+                      - vcluster.project
+                      - vcluster.instance
+                      - k8s.cluster.name
+        singleBinary:
+          replicas: 1
+          persistence:
+            size: 10Gi
+        gateway:
+          enabled: false
+        chunksCache:
+          enabled: false
+        resultsCache:
+          enabled: false
+        lokiCanary:
+          enabled: false
+        test:
+          enabled: false
+        backend:
+          replicas: 0
+        read:
+          replicas: 0
+        write:
+          replicas: 0
+        
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-logs
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-collector
+    targetRevision: 0.162.0
+    helm:
+      releaseName: otel-logs
+      values: |
+        mode: daemonset
+        fullnameOverride: otel-logs
+        image:
+          repository: otel/opentelemetry-collector-contrib
+        tolerations:
+          - operator: Exists
+        presets:
+          logsCollection:
+            enabled: true            # filelog on /var/log/pods
+          kubernetesAttributes:
+            enabled: true            # k8s_attributes, with namespace RBAC
+        ports:
+          otlp: {enabled: false}
+          otlp-http: {enabled: false}
+          jaeger-compact: {enabled: false}
+          jaeger-thrift: {enabled: false}
+          jaeger-grpc: {enabled: false}
+          zipkin: {enabled: false}
+        service:
+          enabled: false
+        config:
+          processors:
+            k8s_attributes:
+              extract:
+                labels:
+                  # On the host namespace of a shared-node tenant cluster.
+                  - tag_name: vcluster.project
+                    key: loft.sh/project
+                    from: namespace
+                  - tag_name: vcluster.instance
+                    key: loft.sh/vcluster-instance-name
+                    from: namespace
+                annotations:
+                  # On each synced pod: its name and namespace inside the tenant.
+                  - tag_name: vcluster.namespace
+                    key: vcluster.loft.sh/object-namespace
+                    from: pod
+                  - tag_name: vcluster.pod
+                    key: vcluster.loft.sh/object-name
+                    from: pod
+            resource/cluster:
+              attributes:
+                - key: k8s.cluster.name
+                  value: loft-cluster
+                  action: upsert
+          exporters:
+            otlp_http/loki:
+              endpoint: http://loki.observability.svc.cluster.local:3100/otlp
+          service:
+            pipelines:
+              logs:
+                receivers: [filelog]
+                processors: [memory_limiter, k8s_attributes, resource/cluster, batch]
+                exporters: [otlp_http/loki]
+              metrics: null
+              traces: null
+        
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]

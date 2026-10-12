@@ -1,0 +1,996 @@
+{
+  "uid": "humana-tenant-cluster",
+  "title": "Tenant Cluster (shared nodes)",
+  "description": "One tenant cluster on shared nodes: where it runs, its pods' CPU and memory, its own view, embedded etcd and logs.",
+  "tags": [
+    "humana",
+    "fleet-observability",
+    "tenant-cluster"
+  ],
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "type": "datasource",
+        "name": "datasource",
+        "label": "Metrics datasource",
+        "query": "prometheus",
+        "description": "Open with var-datasource=<fleet datasource UID>; the walkthrough prints the link.",
+        "hide": 0,
+        "refresh": 1,
+        "current": {}
+      },
+      {
+        "type": "query",
+        "name": "project",
+        "label": "Project",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(k8s_pod_phase{vcluster_platform_instance!=\"\"}, vcluster_platform_project)",
+          "refId": "project"
+        },
+        "definition": "label_values(k8s_pod_phase{vcluster_platform_instance!=\"\"}, vcluster_platform_project)",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "current": {}
+      },
+      {
+        "type": "query",
+        "name": "instance",
+        "label": "Tenant cluster",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(k8s_pod_phase{vcluster_platform_project=\"$project\"}, vcluster_platform_instance)",
+          "refId": "instance"
+        },
+        "definition": "label_values(k8s_pod_phase{vcluster_platform_project=\"$project\"}, vcluster_platform_instance)",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "current": {}
+      },
+      {
+        "type": "custom",
+        "name": "nsprefix",
+        "label": "Host namespace prefix",
+        "description": "Prefix of the tenant cluster's namespace on the control plane cluster: loft (Platform default) or p (projects with namespacePattern p-<project>-v-<name>).",
+        "query": "loft,p",
+        "options": [
+          {
+            "text": "loft",
+            "value": "loft",
+            "selected": true
+          },
+          {
+            "text": "p",
+            "value": "p",
+            "selected": false
+          }
+        ],
+        "current": {
+          "text": "loft",
+          "value": "loft"
+        },
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "search",
+        "label": "Search logs",
+        "query": "",
+        "hide": 0,
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Where it runs",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "Control plane cluster",
+      "description": "The control plane cluster this tenant cluster runs on now, from the label the Write Gateway stamps on every write. Changes from loft-cluster (AKS) to gke when the tenant cluster moves.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_cluster) (k8s_pod_phase{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_cluster}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "name",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Running pods",
+      "description": "Pods in phase Running, as the tenant cluster sees them.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 6,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(k8s_pod_phase{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"} == 2) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "Container restarts",
+      "description": "Sum of restart counts across the tenant cluster's containers.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 10,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(k8s_container_restarts{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 5,
+      "title": "etcd has leader",
+      "description": "1 when the embedded etcd has a leader.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 14,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max(etcd_server_has_leader{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"})",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 6,
+      "title": "etcd DB size",
+      "description": "Embedded etcd database size on disk.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max(etcd_mvcc_db_total_size_in_bytes{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"})",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 7,
+      "title": "Placement over time",
+      "description": "Series per control plane cluster. One line ends and another starts at the move to GKE; project and tenant cluster name stay the same.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (vcluster_platform_cluster) (k8s_pod_phase{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_cluster}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 8,
+      "title": "Resource use: tenant pods on shared nodes (control plane cluster collectors)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 9,
+      "title": "CPU by pod",
+      "description": "cAdvisor on the control plane cluster's nodes, for the tenant's host namespace <prefix>-<project>-v-<name>. Pod names are host names: <pod>-x-<namespace>-x-<tenant>. Includes the tenant's control plane pod.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$nsprefix-$project-v-$instance\",container!=\"\",container!=\"POD\"}[$__rate_interval]))",
+          "refId": "A",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 10,
+      "title": "Memory by pod",
+      "description": "Working set, same source as CPU by pod.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"$nsprefix-$project-v-$instance\",container!=\"\",container!=\"POD\"})",
+          "refId": "A",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 11,
+      "title": "CPU by control plane cluster",
+      "description": "The same CPU summed per control plane cluster.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (vcluster_platform_cluster) (rate(container_cpu_usage_seconds_total{namespace=\"$nsprefix-$project-v-$instance\",container!=\"\",container!=\"POD\"}[$__rate_interval]))",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_cluster}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 12,
+      "title": "Inside the tenant cluster (tenant collector)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 13,
+      "title": "Running pods by namespace",
+      "description": "Tenant-side namespaces, from the k8s_cluster receiver inside the tenant cluster.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 27
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (k8s_namespace_name) (k8s_pod_phase{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"} == 2)",
+          "refId": "A",
+          "legendFormat": "{{k8s_namespace_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 14,
+      "title": "API server requests",
+      "description": "Tenant API server request rate by response code.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 27
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (code) (rate(apiserver_request_total{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"}[$__rate_interval]))",
+          "refId": "A",
+          "legendFormat": "{{code}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 15,
+      "title": "etcd disk latency (p99)",
+      "description": "WAL fsync and backend commit, 99th percentile.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"}[$__rate_interval])))",
+          "refId": "A",
+          "legendFormat": "WAL fsync"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"}[$__rate_interval])))",
+          "refId": "B",
+          "legendFormat": "backend commit"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 16,
+      "title": "etcd proposals",
+      "description": "Committed and failed Raft proposals per second.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(rate(etcd_server_proposals_committed_total{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"}[$__rate_interval]))",
+          "refId": "A",
+          "legendFormat": "committed"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(rate(etcd_server_proposals_failed_total{vcluster_platform_project=\"$project\",vcluster_platform_instance=\"$instance\"}[$__rate_interval]))",
+          "refId": "B",
+          "legendFormat": "failed"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 17,
+      "title": "Logs (Loki)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 18,
+      "title": "Log lines by control plane cluster",
+      "description": "From the log collectors on AKS and GKE. Labels come from the host namespace, so the tenant cluster keeps the same labels when it moves.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (k8s_cluster_name) (count_over_time({vcluster_project=\"$project\", vcluster_instance=\"$instance\"} |~ \"(?i)$search\" [$__auto]))",
+          "refId": "A",
+          "legendFormat": "{{k8s_cluster_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "logs",
+      "id": 19,
+      "title": "Tenant cluster logs",
+      "description": "Every pod in the tenant cluster, its control plane included. vcluster_namespace and vcluster_pod are the names inside the tenant. Filter with the Search box.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 50
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{vcluster_project=\"$project\", vcluster_instance=\"$instance\"} |~ \"(?i)$search\"",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
+    },
+    {
+      "type": "logs",
+      "id": 20,
+      "title": "Platform audit log",
+      "description": "The Platform's audit sidecar (container audit in vcluster-platform on AKS). Requests through the Platform proxy, for example a ClusterRoleBinding created in segment 3.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 64
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{k8s_namespace_name=\"vcluster-platform\", k8s_container_name=\"audit\"} |= \"$instance\" |~ \"(?i)$search\"",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
+    }
+  ]
+}

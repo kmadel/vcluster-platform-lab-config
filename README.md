@@ -14,6 +14,7 @@ cluster parameters and creates the corresponding vCluster Platform
 bootstrap/  Argo CD app-of-apps and child Applications
 baseline/   Shared ArgoCDApplicationTemplates and their local chart sources
 clusters/   Cluster labels and annotations used as fleet parameters
+observability/  Grafana datasource and dashboards beyond the bundled ones
 ```
 
 The `root` Application recursively reconciles `bootstrap/`. Its child
