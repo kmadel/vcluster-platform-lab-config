@@ -17,3 +17,7 @@ spec:
     cluster: loft-cluster
   templateRef:
     name: stacks-demo-app-tenant
+  # The template's repoURL default isn't applied when the instance passes no
+  # parameters: deploy.stacks then renders it empty and blocks the demo app.
+  parameters: |
+    repoURL: https://github.com/loft-demos/ce-demo-stacks-argocd.git
