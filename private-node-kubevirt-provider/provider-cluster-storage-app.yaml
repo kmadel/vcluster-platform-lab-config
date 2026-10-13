@@ -29,6 +29,14 @@ spec:
           parameters:
             server: 192.168.50.61
             share: /srv/nfs/kubevirt-disks
+            # CDI's importer and KubeVirt's virt-launcher write as UID 107, not
+            # root. Without this each volume directory is root-owned 0755, and
+            # imports fail with "mkdir /scratch/disk: permission denied"
+            # (2026-10-13); fsGroup does not reach it on NFS. StorageClass
+            # parameters are immutable: changing this means deleting the
+            # StorageClass and letting Argo CD recreate it (existing PVs keep
+            # working). See storage/README.md.
+            mountPermissions: "0777"
           # A VM's disk is deleted with its NodeClaim: tenant nodes are
           # disposable, and a new claim re-imports the image.
           reclaimPolicy: Delete

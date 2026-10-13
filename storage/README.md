@@ -253,6 +253,10 @@ kubectl --context $P -n default delete pvc nfs-smoke
 ```
 
 The claim should show `Bound`, and deleting it removes its directory on vmetal.
+`Bound` only proves provisioning. CDI's importer and KubeVirt write as UID 107,
+so the StorageClass sets `mountPermissions: "0777"`; without it every VM disk
+import fails with `mkdir /scratch/disk: permission denied` (hit 2026-10-13).
+The real test is the first VM's DataVolume reaching `Succeeded`.
 
 New VMs then get their root disk on `nfs-vm-disks`. Existing VMs keep
 `local-path` until their claim is recreated: delete the VM's platform NodeClaim
