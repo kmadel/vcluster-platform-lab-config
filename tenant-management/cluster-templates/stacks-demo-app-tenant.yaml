@@ -35,7 +35,7 @@ spec:
           # must match the dashboard's tenant variable value exactly.
           loft.sh/custom-links: |-
             DemoApp=https://frontend-{{ .Values.loft.virtualClusterName }}.{{ index .Values.loft.clusterAnnotations "demo.vcluster.com/vcluster-tenant-subdomain" }}
-            Observability=https://vcp.lab.kurtmadel.com/grafana/d/humana-tenant-cluster?var-tenant=vcluster_platform_instance%3D%22{{ .Values.loft.virtualClusterName }}%22%2C%20vcluster_platform_project%3D%22{{ .Values.loft.project }}%22
+            Observability=https://vcp.lab.kurtmadel.com/grafana/d/humana-tenant-cluster?var-tenant=vcluster_platform_instance%3D%22{{ .Values.loft.virtualClusterName }}%22%2Cvcluster_platform_project%3D%22{{ .Values.loft.project }}%22
     pro:
       enabled: true
     helmRelease:

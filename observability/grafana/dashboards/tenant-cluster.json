@@ -42,7 +42,7 @@
           "refId": "tenant"
         },
         "definition": "query_result(count by (vcluster_platform_project, vcluster_platform_instance) (k8s_pod_phase))",
-        "regex": "/\\{(?<value>vcluster_platform_instance=\"(?<text>[^\"]+)\", vcluster_platform_project=\"[^\"]+\")\\}/",
+        "regex": "/\\{(?<value>vcluster_platform_instance=\"(?<text>[^\"]+)\",\\s*vcluster_platform_project=\"[^\"]+\")\\}/",
         "refresh": 2,
         "sort": 1,
         "hide": 0,
