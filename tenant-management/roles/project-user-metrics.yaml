@@ -1,0 +1,44 @@
+# Project User plus metricsread, so members can read their own tenant clusters'
+# metrics through the Fleet Observability Query Proxy.
+#
+# The Query Proxy authorizes every metrics query with the custom verb
+# metricsread on the VirtualClusterInstance. The built-in Project User role
+# grants only create/get/list/watch there, and the Platform's generated
+# instance-access rule is fixed to create/use/get, so without this a Project
+# User gets nothing on a tenant datasource. Rules below are the built-in
+# loft-management-project-user's as of Platform 4.13.0-alpha.19, plus the last one.
+apiVersion: management.loft.sh/v1
+kind: ClusterRoleTemplate
+metadata:
+  name: project-user-metrics
+  labels:
+    loft.sh/project-role: "true"     # offered as a project member role
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  displayName: Project User, with metrics
+  description: Project User, plus reading Fleet Observability metrics of the project's tenant clusters.
+  management: true
+  access:
+    - users: ['*']
+      verbs: [get]
+  clusterRoleTemplate:
+    rules:
+      - apiGroups: [management.loft.sh]
+        resources:
+          - virtualclusterinstances
+          - spaceinstances
+          - projectsecrets
+          - virtualclusterinstances/resourceusage
+          - virtualclusterinstances/controlplanepods
+        verbs: [create, get, list, watch]
+      - apiGroups: [management.loft.sh]
+        resources: [appinstances]
+        verbs: [create]
+      - apiGroups: [management.loft.sh]
+        resources: [nodeclaims]
+        verbs: [watch]
+      - apiGroups: [management.loft.sh]
+        resources: [virtualclusterinstances]
+        verbs: [metricsread]

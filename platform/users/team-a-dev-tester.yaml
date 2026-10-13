@@ -1,0 +1,13 @@
+# Non-admin test identity for the Humana rehearsal's tenant view: a plain
+# member of team-a-dev with project-user-metrics. No password; tests use an
+# access key created out of band. Platform admins bypass the Query Proxy's tenant
+# scope, so tenant isolation can only be checked as a user like this one.
+apiVersion: management.loft.sh/v1
+kind: User
+metadata:
+  name: team-a-dev-tester
+spec:
+  username: team-a-dev-tester
+  subject: team-a-dev-tester
+  displayName: Team A dev tester
+  description: Non-admin member of team-a-dev for testing tenant-scoped metrics reads.

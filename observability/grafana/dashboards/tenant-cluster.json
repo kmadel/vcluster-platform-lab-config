@@ -22,9 +22,30 @@
         "name": "datasource",
         "label": "Metrics datasource",
         "query": "prometheus",
-        "description": "Open with var-datasource=<fleet datasource UID>; the walkthrough prints the link.",
-        "hide": 0,
+        "hide": 2,
         "refresh": 1,
+        "current": {
+          "text": "e8b3387a-24f9-4f94-9ffc-555c6cb944f8",
+          "value": "e8b3387a-24f9-4f94-9ffc-555c6cb944f8"
+        }
+      },
+      {
+        "type": "query",
+        "name": "tenant",
+        "label": "Tenant cluster",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "query_result(count by (vcluster_platform_project, vcluster_platform_instance) (k8s_pod_phase))",
+          "refId": "tenant"
+        },
+        "definition": "query_result(count by (vcluster_platform_project, vcluster_platform_instance) (k8s_pod_phase))",
+        "regex": "/\\{(?<value>vcluster_platform_instance=\"(?<text>[^\"]+)\", vcluster_platform_project=\"[^\"]+\")\\}/",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
         "current": {}
       },
       {
@@ -36,31 +57,31 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(k8s_pod_phase{vcluster_platform_instance!=\"\"}, vcluster_platform_project)",
+          "query": "query_result(count by (vcluster_platform_project) (k8s_pod_phase{$tenant}))",
           "refId": "project"
         },
-        "definition": "label_values(k8s_pod_phase{vcluster_platform_instance!=\"\"}, vcluster_platform_project)",
+        "definition": "query_result(count by (vcluster_platform_project) (k8s_pod_phase{$tenant}))",
+        "regex": "/vcluster_platform_project=\"([^\"]+)\"/",
         "refresh": 2,
-        "sort": 1,
-        "hide": 0,
+        "hide": 2,
         "current": {}
       },
       {
         "type": "query",
         "name": "instance",
-        "label": "Tenant cluster",
+        "label": "Instance",
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(k8s_pod_phase{vcluster_platform_project=\"$project\"}, vcluster_platform_instance)",
+          "query": "query_result(count by (vcluster_platform_instance) (k8s_pod_phase{$tenant}))",
           "refId": "instance"
         },
-        "definition": "label_values(k8s_pod_phase{vcluster_platform_project=\"$project\"}, vcluster_platform_instance)",
+        "definition": "query_result(count by (vcluster_platform_instance) (k8s_pod_phase{$tenant}))",
+        "regex": "/vcluster_platform_instance=\"([^\"]+)\"/",
         "refresh": 2,
-        "sort": 1,
-        "hide": 0,
+        "hide": 2,
         "current": {}
       },
       {
