@@ -1,11 +1,12 @@
 {
   "uid": "humana-tenant-view",
-  "title": "Tenant Cluster",
+  "title": "Tenant Cluster (tenant view)",
   "description": "One tenant cluster, as its own team sees it: where it runs, its pods, its API server and etcd, and its logs. Opened from the tenant cluster's Observability link in the Platform UI, which sets var-project and var-instance; every query names that tenant cluster exactly, so the Platform authorizes it against the viewer's own permissions.",
   "tags": [
-    "humana",
     "fleet-observability",
-    "tenant-cluster"
+    "humana",
+    "tenant-cluster",
+    "tenant-view"
   ],
   "editable": false,
   "graphTooltip": 1,

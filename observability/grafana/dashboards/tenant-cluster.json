@@ -1,10 +1,11 @@
 {
   "uid": "humana-tenant-cluster",
-  "title": "Tenant Cluster (shared nodes)",
+  "title": "Tenant Clusters (admin)",
   "description": "One tenant cluster on shared nodes: where it runs, its pods' CPU and memory, its own view, embedded etcd and logs.",
   "tags": [
-    "humana",
+    "admin",
     "fleet-observability",
+    "humana",
     "tenant-cluster"
   ],
   "editable": false,
