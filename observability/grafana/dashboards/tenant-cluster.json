@@ -85,6 +85,64 @@
         "current": {}
       },
       {
+        "type": "query",
+        "name": "namespace",
+        "label": "Namespace",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "query_result(count by (k8s_namespace_name) (k8s_pod_phase{$tenant}))",
+          "refId": "namespace"
+        },
+        "definition": "query_result(count by (k8s_namespace_name) (k8s_pod_phase{$tenant}))",
+        "regex": "/k8s_namespace_name=\"([^\"]+)\"/",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "type": "query",
+        "name": "pod",
+        "label": "Pod",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "query_result(count by (k8s_pod_name) (k8s_pod_phase{$tenant, k8s_namespace_name=~\"$namespace\"}))",
+          "refId": "pod"
+        },
+        "definition": "query_result(count by (k8s_pod_name) (k8s_pod_phase{$tenant, k8s_namespace_name=~\"$namespace\"}))",
+        "regex": "/k8s_pod_name=\"([^\"]+)\"/",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
         "type": "custom",
         "name": "nsprefix",
         "label": "Host namespace prefix",
@@ -910,7 +968,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (k8s_cluster_name) (count_over_time({vcluster_project=\"$project\", vcluster_instance=\"$instance\"} |~ \"(?i)$search\" [$__auto]))",
+          "expr": "sum by (k8s_cluster_name) (count_over_time({vcluster_project=\"$project\", vcluster_instance=\"$instance\"} | vcluster_namespace=~\"$namespace\" | vcluster_pod=~\"$pod\" |~ \"(?i)$search\" [$__auto]))",
           "refId": "A",
           "legendFormat": "{{k8s_cluster_name}}"
         }
@@ -947,7 +1005,7 @@
       "type": "logs",
       "id": 19,
       "title": "Tenant cluster logs",
-      "description": "Every pod in the tenant cluster, its control plane included. vcluster_namespace and vcluster_pod are the names inside the tenant. Filter with the Search box.",
+      "description": "Every pod in the tenant cluster, its control plane included. Narrow with Namespace and Pod (names inside the tenant cluster) or the Search logs box.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -964,7 +1022,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{vcluster_project=\"$project\", vcluster_instance=\"$instance\"} |~ \"(?i)$search\"",
+          "expr": "{vcluster_project=\"$project\", vcluster_instance=\"$instance\"} | vcluster_namespace=~\"$namespace\" | vcluster_pod=~\"$pod\" |~ \"(?i)$search\"",
           "refId": "A",
           "queryType": "range"
         }
