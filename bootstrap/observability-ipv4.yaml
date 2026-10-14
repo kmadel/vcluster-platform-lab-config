@@ -1,0 +1,89 @@
+# observability-ipv4.yaml - the lab rehearsal of the Humana demo's IPv4 address
+# use collector (loft-demos/ce-demo-humana,
+# gitops/management/observability/ipv4.yaml) and its dashboard,
+# observability/grafana/dashboards/ipv4.json.
+#
+# 4.13's cluster-collector already runs kube-state-metrics on loft-cluster
+# (ksm-kube-state-metrics, every resource), but nothing scrapes it into Fleet
+# Observability. This collector scrapes it, keeps the four metrics the dashboard
+# uses, and writes them to the gateway with the cluster's metrics-writer key,
+# like the bundled collectors. Humana's 4.12.2 has no bundled kube-state-metrics,
+# so its copy deploys one, limited to Services and Nodes.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-ipv4
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-collector
+    targetRevision: 0.162.0
+    helm:
+      releaseName: ipv4-collector
+      values: |
+        mode: deployment
+        replicaCount: 1
+        fullnameOverride: ipv4-collector
+        image:
+          repository: otel/opentelemetry-collector-contrib
+        ports:
+          otlp: {enabled: false}
+          otlp-http: {enabled: false}
+          jaeger-compact: {enabled: false}
+          jaeger-thrift: {enabled: false}
+          jaeger-grpc: {enabled: false}
+          zipkin: {enabled: false}
+        service:
+          enabled: false             # push only
+        resources:
+          requests: {cpu: 10m, memory: 64Mi}
+          limits: {memory: 256Mi}
+        extraVolumes:
+          - name: otlp-auth
+            secret:
+              secretName: otel-otlp-auth
+        extraVolumeMounts:
+          - name: otlp-auth
+            mountPath: /etc/otel/auth
+            readOnly: true
+        config:
+          receivers:
+            prometheus:
+              config:
+                scrape_configs:
+                  - job_name: kube-state-metrics
+                    scrape_interval: 60s
+                    static_configs:
+                      - targets: [ksm-kube-state-metrics.observability.svc:8080]
+                    # The bundled kube-state-metrics reports every resource;
+                    # Humana's own is limited to these four at the source.
+                    metric_relabel_configs:
+                      - source_labels: [__name__]
+                        regex: kube_service_spec_type|kube_service_status_load_balancer_ingress|kube_service_spec_external_ip|kube_node_info
+                        action: keep
+          exporters:
+            otlp_http:
+              endpoint: https://otel.lab.kurtmadel.com
+              headers:
+                X-Vcluster-Platform-Cluster: loft-cluster
+                Authorization: "${file:/etc/otel/auth/authorization}"
+          service:
+            pipelines:
+              metrics:
+                receivers: [prometheus]
+                processors: [memory_limiter, batch]
+                exporters: [otlp_http]
+              logs: null
+              traces: null
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
