@@ -159,19 +159,19 @@ spec:
                     - resource.attributes["k8s.container.name"] == "syncer"
                   statements:
                     # vCluster's own lines: "2026-10-14 09:42:57<TAB><colour>INFO<colour><TAB>caller<TAB>message"
-                    - merge_maps(cache, ExtractPatterns(body, "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\t(?:\\x1b\\[[0-9;]*m)?(?P<level>DEBUG|INFO|WARN|ERROR|FATAL)"), "upsert")
+                    - merge_maps(log.cache, ExtractPatterns(log.body, "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\t(?:\\x1b\\[[0-9;]*m)?(?P<level>DEBUG|INFO|WARN|ERROR|FATAL)"), "upsert")
                     # Kubernetes components inside the control plane (klog): "E1014 09:43:02.123 ..."
-                    - merge_maps(cache, ExtractPatterns(body, "^(?P<klog>[IWEF])\\d{4} \\d{2}:\\d{2}:\\d{2}"), "upsert")
-                    - set(cache["level"], "INFO") where cache["level"] == nil and cache["klog"] == "I"
-                    - set(cache["level"], "WARN") where cache["level"] == nil and cache["klog"] == "W"
-                    - set(cache["level"], "ERROR") where cache["level"] == nil and cache["klog"] == "E"
-                    - set(cache["level"], "FATAL") where cache["level"] == nil and cache["klog"] == "F"
-                    - set(severity_text, cache["level"]) where cache["level"] != nil
-                    - set(severity_number, SEVERITY_NUMBER_DEBUG) where cache["level"] == "DEBUG"
-                    - set(severity_number, SEVERITY_NUMBER_INFO) where cache["level"] == "INFO"
-                    - set(severity_number, SEVERITY_NUMBER_WARN) where cache["level"] == "WARN"
-                    - set(severity_number, SEVERITY_NUMBER_ERROR) where cache["level"] == "ERROR"
-                    - set(severity_number, SEVERITY_NUMBER_FATAL) where cache["level"] == "FATAL"
+                    - merge_maps(log.cache, ExtractPatterns(log.body, "^(?P<klog>[IWEF])\\d{4} \\d{2}:\\d{2}:\\d{2}"), "upsert")
+                    - set(log.cache["level"], "INFO") where log.cache["level"] == nil and log.cache["klog"] == "I"
+                    - set(log.cache["level"], "WARN") where log.cache["level"] == nil and log.cache["klog"] == "W"
+                    - set(log.cache["level"], "ERROR") where log.cache["level"] == nil and log.cache["klog"] == "E"
+                    - set(log.cache["level"], "FATAL") where log.cache["level"] == nil and log.cache["klog"] == "F"
+                    - set(log.severity_text, log.cache["level"]) where log.cache["level"] != nil
+                    - set(log.severity_number, SEVERITY_NUMBER_DEBUG) where log.cache["level"] == "DEBUG"
+                    - set(log.severity_number, SEVERITY_NUMBER_INFO) where log.cache["level"] == "INFO"
+                    - set(log.severity_number, SEVERITY_NUMBER_WARN) where log.cache["level"] == "WARN"
+                    - set(log.severity_number, SEVERITY_NUMBER_ERROR) where log.cache["level"] == "ERROR"
+                    - set(log.severity_number, SEVERITY_NUMBER_FATAL) where log.cache["level"] == "FATAL"
           exporters:
             otlp_http/loki:
               endpoint: http://loki.observability.svc.cluster.local:3100/otlp
