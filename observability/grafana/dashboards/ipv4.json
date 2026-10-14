@@ -1,0 +1,818 @@
+{
+  "uid": "humana-ipv4",
+  "title": "IPv4 Address Use (admin)",
+  "description": "Where IPv4 addresses go across the control plane clusters: external IPs, who holds them, node IPs, and what tenant clusters add. From kube-state-metrics, collected into Fleet Observability.",
+  "tags": [
+    "humana",
+    "fleet-observability",
+    "ipv4",
+    "admin"
+  ],
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "type": "datasource",
+        "name": "datasource",
+        "label": "Metrics datasource",
+        "query": "prometheus",
+        "hide": 2,
+        "refresh": 1,
+        "current": {
+          "text": "e8b3387a-24f9-4f94-9ffc-555c6cb944f8",
+          "value": "e8b3387a-24f9-4f94-9ffc-555c6cb944f8"
+        }
+      },
+      {
+        "type": "query",
+        "name": "cluster",
+        "label": "Control plane cluster",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(kube_node_info, vcluster_platform_cluster)",
+          "refId": "cluster"
+        },
+        "definition": "label_values(kube_node_info, vcluster_platform_cluster)",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "text",
+      "id": 1,
+      "title": "",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Where IPv4 addresses go.** Every node takes one address from its VNet or VPC, and every LoadBalancer Service takes one external address. A tenant cluster on shared nodes adds neither: its pods run on the control plane cluster's nodes, its Services are ClusterIPs from that cluster's internal range, and its traffic comes in through the shared Istio gateway."
+      }
+    },
+    {
+      "type": "row",
+      "id": 2,
+      "title": "Fleet",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Tenant clusters",
+      "description": "Tenant clusters with a host namespace on the selected control plane clusters.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(count by (vcluster_platform_cluster, namespace) (kube_service_spec_type{vcluster_platform_cluster=~\"$cluster\", namespace=~\"(?:loft|p)-(.+)-v-(.+)\"})) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "External IPs",
+      "description": "Addresses assigned to LoadBalancer Services, plus any Service externalIPs.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(count(kube_service_status_load_balancer_ingress{vcluster_platform_cluster=~\"$cluster\", ip!=\"\"}) or vector(0)) + (count(kube_service_spec_external_ip{vcluster_platform_cluster=~\"$cluster\"}) or vector(0))",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 5,
+      "title": "External IPs held by tenant clusters",
+      "description": "LoadBalancer addresses on Services in a tenant cluster's host namespace: a tenant's own LoadBalancer Service, or a private-node control plane exposed as one.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(kube_service_status_load_balancer_ingress{vcluster_platform_cluster=~\"$cluster\", ip!=\"\", namespace=~\"(?:loft|p)-(.+)-v-(.+)\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 6,
+      "title": "LoadBalancers waiting for an IP",
+      "description": "LoadBalancer Services with no address assigned yet. Above zero for long can mean the subnet or the public IP quota is exhausted.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(kube_service_spec_type{vcluster_platform_cluster=~\"$cluster\", type=\"LoadBalancer\"} unless on (vcluster_platform_cluster, namespace, service) kube_service_status_load_balancer_ingress) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 7,
+      "title": "Node IPs",
+      "description": "Nodes on the selected control plane clusters: one VNet or VPC address each.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(kube_node_info{vcluster_platform_cluster=~\"$cluster\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 8,
+      "title": "ClusterIP Services",
+      "description": "Services with only a cluster-internal address: no VNet, VPC or public address.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(kube_service_spec_type{vcluster_platform_cluster=~\"$cluster\", type=\"ClusterIP\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF6600"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 9,
+      "title": "External IPs per control plane cluster",
+      "description": "LoadBalancer addresses and externalIPs over time.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(count by (vcluster_platform_cluster) (kube_service_status_load_balancer_ingress{vcluster_platform_cluster=~\"$cluster\", ip!=\"\"})) + on (vcluster_platform_cluster) group_left () (count by (vcluster_platform_cluster) (kube_service_spec_external_ip{vcluster_platform_cluster=~\"$cluster\"}) or (0 * count by (vcluster_platform_cluster) (kube_node_info{vcluster_platform_cluster=~\"$cluster\"})))",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_cluster}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 10,
+      "title": "Tenant clusters and node IPs per control plane cluster",
+      "description": "Tenant clusters keep growing while node IPs stay flat: shared nodes add tenants without addresses.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (vcluster_platform_cluster) (count by (vcluster_platform_cluster, namespace) (kube_service_spec_type{vcluster_platform_cluster=~\"$cluster\", namespace=~\"(?:loft|p)-(.+)-v-(.+)\"}))",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_cluster}} tenant clusters"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (vcluster_platform_cluster) (kube_node_info{vcluster_platform_cluster=~\"$cluster\"})",
+          "refId": "B",
+          "legendFormat": "{{vcluster_platform_cluster}} node IPs"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 11,
+      "title": "Who holds the addresses",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "id": 12,
+      "title": "External IPs",
+      "description": "Every LoadBalancer address, and the tenant cluster that owns it when its Service is in a tenant cluster's host namespace.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 14,
+        "x": 0,
+        "y": 17
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(kube_service_status_load_balancer_ingress{vcluster_platform_cluster=~\"$cluster\", ip!=\"\"}, \"tenant_cluster\", \"$2\", \"namespace\", \"(?:loft|p)-(.+)-v-(.+)\"), \"project\", \"$1\", \"namespace\", \"(?:loft|p)-(.+)-v-(.+)\")",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "vcluster_platform_cluster",
+                "ip",
+                "namespace",
+                "service",
+                "project",
+                "tenant_cluster"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "vcluster_platform_cluster": 0,
+              "ip": 1,
+              "namespace": 2,
+              "service": 3,
+              "project": 4,
+              "tenant_cluster": 5
+            },
+            "renameByName": {
+              "vcluster_platform_cluster": "Control plane cluster",
+              "ip": "External IP",
+              "namespace": "Namespace",
+              "service": "Service",
+              "project": "Project",
+              "tenant_cluster": "Tenant cluster"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Control plane cluster",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "id": 13,
+      "title": "Services by type, per tenant cluster",
+      "description": "What each tenant cluster's Services cost in addresses: ClusterIP takes none outside the cluster, LoadBalancer takes one external IP.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 14,
+        "y": 17
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (vcluster_platform_cluster, project, tenant_cluster, type) (label_replace(label_replace(kube_service_spec_type{vcluster_platform_cluster=~\"$cluster\", namespace=~\"(?:loft|p)-(.+)-v-(.+)\"}, \"tenant_cluster\", \"$2\", \"namespace\", \"(?:loft|p)-(.+)-v-(.+)\"), \"project\", \"$1\", \"namespace\", \"(?:loft|p)-(.+)-v-(.+)\"))",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "project",
+                "tenant_cluster",
+                "vcluster_platform_cluster",
+                "type",
+                "Value"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "project": 0,
+              "tenant_cluster": 1,
+              "vcluster_platform_cluster": 2,
+              "type": 3,
+              "Value": 4
+            },
+            "renameByName": {
+              "project": "Project",
+              "tenant_cluster": "Tenant cluster",
+              "vcluster_platform_cluster": "Control plane cluster",
+              "type": "Type",
+              "Value": "Services"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Project",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "id": 14,
+      "title": "Nodes",
+      "description": "Each node's VNet or VPC address, and the pod range it was given. On AKS (Azure CNI overlay) pod ranges are overlay addresses, not VNet addresses; on GKE (VPC-native) they come from the VPC's secondary range.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "kube_node_info{vcluster_platform_cluster=~\"$cluster\"}",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "vcluster_platform_cluster",
+                "node",
+                "internal_ip",
+                "pod_cidr"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "vcluster_platform_cluster": 0,
+              "node": 1,
+              "internal_ip": 2,
+              "pod_cidr": 3
+            },
+            "renameByName": {
+              "vcluster_platform_cluster": "Control plane cluster",
+              "node": "Node",
+              "internal_ip": "Node IP",
+              "pod_cidr": "Pod range"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Control plane cluster",
+            "desc": false
+          }
+        ]
+      }
+    }
+  ]
+}
