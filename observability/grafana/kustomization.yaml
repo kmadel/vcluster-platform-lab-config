@@ -20,3 +20,12 @@ configMapGenerator:
     options:
       labels:
         grafana_dashboard: "1"
+  # What a tenant cluster's own team opens from its Observability link in the Platform UI
+  # (generated from the same script as tenant-cluster.json, in tenant mode).
+  - name: grafana-dashboard-tenant-view
+    namespace: vcluster-platform
+    files:
+      - dashboards/tenant-view.json
+    options:
+      labels:
+        grafana_dashboard: "1"
