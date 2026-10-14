@@ -147,15 +147,11 @@
         "name": "container",
         "label": "Container",
         "datasource": {
-          "type": "prometheus",
-          "uid": "${datasource}"
+          "type": "loki",
+          "uid": "loki"
         },
-        "query": {
-          "query": "query_result(count by (k8s_container_name) (k8s_container_restarts{$tenant, k8s_namespace_name=~\"$namespace\", k8s_pod_name=~\"$pod\"}))",
-          "refId": "container"
-        },
-        "definition": "query_result(count by (k8s_container_name) (k8s_container_restarts{$tenant, k8s_namespace_name=~\"$namespace\", k8s_pod_name=~\"$pod\"}))",
-        "regex": "/k8s_container_name=\"([^\"]+)\"/",
+        "query": "label_values({vcluster_project=\"$project\", vcluster_instance=\"$instance\"}, k8s_container_name)",
+        "definition": "label_values({vcluster_project=\"$project\", vcluster_instance=\"$instance\"}, k8s_container_name)",
         "refresh": 2,
         "sort": 1,
         "hide": 0,
