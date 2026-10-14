@@ -148,6 +148,30 @@ spec:
                 - key: k8s.cluster.name
                   value: loft-cluster
                   action: upsert
+            # vCluster writes its level wrapped in terminal colour codes, which Loki can't
+            # read, so it guessed a level from words like "error" in the message: INFO
+            # lines showed as ERROR. Set the real level as the log's severity instead.
+            transform/vcluster_level:
+              error_mode: ignore
+              log_statements:
+                - context: log
+                  conditions:
+                    - resource.attributes["k8s.container.name"] == "syncer"
+                  statements:
+                    # vCluster's own lines: "2026-10-14 09:42:57<TAB><colour>INFO<colour><TAB>caller<TAB>message"
+                    - merge_maps(cache, ExtractPatterns(body, "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\t(?:\\x1b\\[[0-9;]*m)?(?P<level>DEBUG|INFO|WARN|ERROR|FATAL)"), "upsert")
+                    # Kubernetes components inside the control plane (klog): "E1014 09:43:02.123 ..."
+                    - merge_maps(cache, ExtractPatterns(body, "^(?P<klog>[IWEF])\\d{4} \\d{2}:\\d{2}:\\d{2}"), "upsert")
+                    - set(cache["level"], "INFO") where cache["level"] == nil and cache["klog"] == "I"
+                    - set(cache["level"], "WARN") where cache["level"] == nil and cache["klog"] == "W"
+                    - set(cache["level"], "ERROR") where cache["level"] == nil and cache["klog"] == "E"
+                    - set(cache["level"], "FATAL") where cache["level"] == nil and cache["klog"] == "F"
+                    - set(severity_text, cache["level"]) where cache["level"] != nil
+                    - set(severity_number, SEVERITY_NUMBER_DEBUG) where cache["level"] == "DEBUG"
+                    - set(severity_number, SEVERITY_NUMBER_INFO) where cache["level"] == "INFO"
+                    - set(severity_number, SEVERITY_NUMBER_WARN) where cache["level"] == "WARN"
+                    - set(severity_number, SEVERITY_NUMBER_ERROR) where cache["level"] == "ERROR"
+                    - set(severity_number, SEVERITY_NUMBER_FATAL) where cache["level"] == "FATAL"
           exporters:
             otlp_http/loki:
               endpoint: http://loki.observability.svc.cluster.local:3100/otlp
@@ -155,7 +179,7 @@ spec:
             pipelines:
               logs:
                 receivers: [filelog]
-                processors: [memory_limiter, k8s_attributes, resource/cluster, batch]
+                processors: [memory_limiter, k8s_attributes, resource/cluster, transform/vcluster_level, batch]
                 exporters: [otlp_http/loki]
               metrics: null
               traces: null
