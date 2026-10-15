@@ -762,7 +762,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (k8s_cluster_name) (count_over_time({vcluster_project=\"$project\", vcluster_instance=\"$instance\", k8s_container_name=~\"$container\"} | vcluster_namespace=~\"$namespace\" | vcluster_pod=~\"$pod\" |~ \"(?i)$search\" [$__auto]))",
+          "expr": "label_replace(sum by (k8s_cluster_name) (count_over_time({vcluster_project=\"$project\", vcluster_instance=\"$instance\", k8s_container_name=~\"$container\"} | vcluster_namespace=~\"$namespace\" | vcluster_pod=~\"$pod\" |~ \"(?i)$search\" [$__auto])), \"k8s_cluster_name\", \"loft-cluster\", \"k8s_cluster_name\", \"aks\")",
           "refId": "A",
           "legendFormat": "{{k8s_cluster_name}}"
         }
