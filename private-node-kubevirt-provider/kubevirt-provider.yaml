@@ -41,6 +41,11 @@ spec:
         properties:
           kubevirt.vcluster.com/image-url: docker://quay.io/containerdisks/ubuntu:24.04
           kubevirt.vcluster.com/root-disk-size: 20Gi
+          # Same SSH key the Metal3 provider injects. Without it a VM's cloud-init
+          # has no user or key, so a node that boots but never joins cannot be
+          # inspected (2026-10-13: vm-tenant's VM never contacted its control plane,
+          # and nothing showed why). Resolved by Platform's shared join builder.
+          vcluster.com/ssh-keys: admin-bastion-host
           # VM root disks on vmetal's NFS export (nfs-vm-disks, from
           # provider-cluster-storage-app.yaml) instead of local-path on the
           # provider node, so re-imaging a provider node no longer blanks its
