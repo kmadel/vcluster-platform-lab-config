@@ -82,26 +82,30 @@ and DCGM series (`DCGM_FI_DEV_GPU_UTIL` between 15 and 75%) on the Fleet GPU das
 
 ## Variant: NVSentinel fault injection
 
-**Status: written 2026-10-17, not yet run.** Templates render and validate (sprig, vCluster
-0.37.3 schema, NVSentinel v1.21.0 and GPU Operator v26.3.3 `helm template`).
+**Status: verified 2026-10-17** with `mock-gpu-nvs` in `vm-tenants`. Stack Healthy about 14
+minutes after create (including one provider scale-out for the CPU service VM). A thermal
+fault cordoned its node in **12 seconds** and the drained pod was running elsewhere in under
+a minute; cooling the GPU uncordoned the node in **21 seconds**, with no manual step.
 
 Template **Private Nodes - KubeVirt VMs with Simulated GPUs and NVSentinel**
 (`private-nodes-kubevirt-mock-gpu-nvsentinel-stack`, Stack `demo-mock-gpu-nvsentinel`): the
 four mock-GPU VMs plus one `kvm-medium` CPU service VM, with standalone DCGM
-(`nvidia-dcgm` on 5555) and NVSentinel's full pipeline (MongoDB via Percona,
+(`nvidia-dcgm` on 5555) and NVSentinel v1.21.0's full pipeline (MongoDB via Percona,
 fault-quarantine, node-drainer), following NVIDIA's k8s-test-infra NVSentinel guide.
 `demo-nvsentinel` (the real-GPU stack's) stays detection-only.
 
 - **Shares the mock host** with the plain template: delete one cluster before creating the other.
 - **The CPU service VM** lands on the provider's large hosts. `rack-a-u18-large` lacks the
-  4 GiB, so expect the provider cluster to add `rack-b-u16-large` (one Metal3 boot). Keep that
-  host unassigned (see "Don't assign the mock host to a tenant").
+  4 GiB, so the provider cluster adds `rack-b-u16-large` (one Metal3 boot, about 2 minutes on
+  2026-10-17). Keep that host unassigned (see "Don't assign the mock host to a tenant").
 - **Placement:** health monitor, metadata collector and platform connectors on the GPU nodes;
-  everything else on the CPU service VM, so a GPU drain never evicts the pipeline.
+  MongoDB, its operator, fault-quarantine, node-drainer and the labeler on the CPU service VM,
+  so a GPU drain never evicts the pipeline.
 
 ### The demo beat
 
-In the tenant cluster, put something on the GPUs to watch it move:
+In the tenant cluster, put something on the GPUs to watch it move. Leave one GPU free so the
+evicted pod has somewhere to go (three replicas on four GPU nodes):
 
 ```sh
 kubectl create deployment gpu-workload --image=busybox:1.36 --replicas=3 -- sleep infinity
@@ -109,7 +113,7 @@ kubectl set resources deployment gpu-workload --limits=nvidia.com/gpu=1
 kubectl get pods -l app=gpu-workload -o wide
 ```
 
-Heat one GPU past its slowdown threshold (B200's T.Limit; 142 °C is the guide's value):
+Heat one GPU past its slowdown threshold (142 °C is the guide's value):
 
 ```sh
 NODE=<a node running a gpu-workload pod>
@@ -119,11 +123,123 @@ kubectl get node $NODE -o jsonpath='{.spec.unschedulable}{"\n"}{range .status.co
 kubectl get pods -l app=gpu-workload -o wide -w     # evicted, rescheduled elsewhere
 ```
 
-Expect `GpuThermalMarginWatch=True`, the node cordoned and drained, and its pod rescheduled.
-Then cool it, and NVSentinel uncordons the node on its own:
+What happened on 2026-10-17: `GpuThermalMarginWatch=True`,
+`GPU_TEMP_HW_SLOWDOWN_VIOLATION ... thermal margin -5°C below HW slowdown`, the node cordoned
+(`node.kubernetes.io/unschedulable`), and the pod on it evicted and running on the free GPU
+node. The evicted pod took its full 30 s grace period (`sleep` ignores SIGTERM).
+
+Cool it, and NVSentinel uncordons the node on its own:
 
 ```sh
 kubectl -n mokka exec $MOCK -c nvml-mock-nri -- nvml-mock-ctl reset --gpu 0
 ```
 
-The Tenant Cluster GPUs dashboard shows the temperature spike on that GPU while it happens.
+On the Tenant Cluster GPUs dashboard the GPU's temperature jumps from about 60 to **95 °C**
+(DCGM's reported temperature tops out there; NVSentinel acts on the thermal-margin field,
+which the 142 °C pin drives negative) and drops back after the reset, with the usual scrape
+delay of up to a minute.
+
+`nvml-mock-ctl` has more faults for other beats: `fail` (lost device, fallen off the bus,
+ECC, Xid; `--mode healthy` clears it), and pins for `util`, `power`, `clocks`, `throttle` and
+`pstate`. Only the thermal path is verified here.
+
+### What the first run showed
+
+- **Stack tasks can show Failed while they wait for a node.** cert-manager went Failed
+  (reason Degraded) before the CPU service VM joined; it was retried from the UI. Pods
+  Pending for lack of a node is the trigger: retry the task (UI, or the
+  `platform.vcluster.com/stack-retry` annotation) once the node is in.
+- **NVSentinel's first few minutes are noisy and fine.** platform-connectors,
+  fault-quarantine and node-drainer crash-loop with `ENOTFOUND mongodb-rs0...` until MongoDB
+  is Ready: a headless Service has no DNS record before its pod is ready. They recover on
+  their next restart once `create-mongodb-database` completes.
+- **Every watch must be healthy before you inject.** `kubectl get node <gpu node> -o
+  jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'` should list
+  `GpuThermalMarginWatch=False` and `GpuNvlinkWatch=False`. A True NVLink watch at idle means
+  the BER suppression didn't apply, and that node will never uncordon after a fault.
+
+## Run it in your own environment
+
+The lab build uses Metal3 hosts, KubeVirt VMs and a GitOps repo, but the simulated-GPU part
+is independent of all three: **any vCluster private node running containerd 2.x can carry
+nvml-mock.** Pick the shape that fits.
+
+### What you need
+
+| | Plain mock | With NVSentinel |
+| --- | --- | --- |
+| vCluster Platform | 4.12+ with private nodes and the Argo CD integration (Stacks). 4.13 for Tenants. | same |
+| Node runtime | containerd 2.x under systemd, as vCluster's join installs it | same |
+| GPU nodes | 1 CPU, 3 GiB, 30 GiB disk each (one simulated GPU per node) | same, plus ~770 MiB of NVSentinel requests per node |
+| CPU service node | none | 2 CPU, 4 GiB, plus a StorageClass for a 2 GiB MongoDB volume (`local-path` in a private-node tenant cluster) |
+| Images and charts | `ghcr.io/nvidia/nvml-mock`, `nvcr.io` (GPU Operator, dcgm-exporter), `helm.ngc.nvidia.com/nvidia` | plus `ghcr.io/nvidia/nvsentinel`, `docker.io/percona/*`, `quay.io/jetstack` (cert-manager) |
+| Optional | Fleet Observability, for the Tenant Cluster GPUs dashboard | same |
+
+No real GPU, IOMMU, vfio or device operator anywhere.
+
+### Fastest path: any existing tenant cluster
+
+If you already have a private-node tenant cluster with Argo CD integration, skip the
+infrastructure: apply the Argo CD templates and a Stack, and attach the Stack to that cluster.
+
+1. Apply `tenant-management/argocd-templates/nvml-mock-application-template.yaml` and
+   `gpu-operator-mock-application-template.yaml` (plus `nvsentinel-mock-application-template.yaml`,
+   `cert-manager-application-template.yaml` and `stack-gate-application-template.yaml` for
+   the NVSentinel variant; the plain Stack also needs the stack gate).
+2. Apply `tenant-management/stacks-templates/mock-gpu-stack.yaml` (or
+   `mock-gpu-nvsentinel-stack.yaml`).
+3. Label the nodes that should get a simulated GPU `workload.example.com/pool=gpu-compute`
+   (and, for NVSentinel, one CPU node `workload.example.com/pool=cpu-services`).
+4. Add the Stack to the cluster (cluster template `deploy.stacks`, or the UI) with `minGPUs`
+   set to the number of GPU nodes.
+
+Each labelled node then reports `nvidia.com/gpu: 1` within a few minutes of nvml-mock starting.
+
+### Full path: KubeVirt VMs as in the lab
+
+Copy these, then change the lab-specific values below.
+
+| File | What it is |
+| --- | --- |
+| `private-node-kubevirt-provider/private-node-provider-dynamic-template.yaml` | KubeVirt provider cluster template; adds the `mock-gpu-host` static pool |
+| `private-node-kubevirt-provider/kubevirt-provider.yaml` | `KubeVirtProviderCluster` with the `kvm-mock-gpu` NodeType (other types avoid the mock host) |
+| `tenant-management/cluster-templates/private-kubevirt-mock-gpu-stack.yaml` | Tenant template, 4 GPU VMs |
+| `tenant-management/cluster-templates/private-kubevirt-mock-gpu-nvsentinel-stack.yaml` | Tenant template, 4 GPU VMs + CPU service VM |
+| `tenant-management/argocd-templates/{nvml-mock,gpu-operator-mock,nvsentinel-mock}-application-template.yaml` | The three mock-specific Argo CD templates |
+| `tenant-management/stacks-templates/mock-gpu{,-nvsentinel}-stack.yaml` | The two Stacks |
+| `observability/grafana/gen_tenant_gpus.py` | Generator for the Tenant Cluster GPUs dashboard |
+
+Lab-specific values to replace:
+
+| Where | Lab value | Replace with |
+| --- | --- | --- |
+| Tenant templates, `autoNodes[].provider` | `kubevirt-us-va-blacksburg-dc1` | your KubeVirt NodeProvider |
+| Tenant templates, `joinNode.containerd.registry.mirrors` | `192.168.50.61:500x` pull-through caches | your mirrors, or delete the block |
+| Tenant templates, `controlPlane.statefulSet.scheduling.nodeSelector` | `kubernetes.io/hostname: vmetal-w02` | where your tenant control planes run, or delete |
+| Tenant templates, `integrations.argoCD.connector` | `demo-lab` / `demo-lab-<tenant>` | your Argo CD connector |
+| Tenant templates, `networking` | pod `10.244.0.0/16`, service `10.96.0.0/16` | anything off your provider's pod and service CIDRs (KubeVirt bridge binding puts node IPs on the provider pod network) |
+| Provider template, `mock-gpu-host` | `vcluster.com/profile In [xlarge]` | a selector for one 8 CPU / 16 GiB host, or drop the pool and the `kvm-mock-gpu` affinity to use your existing KubeVirt hosts |
+| `kubevirt-provider.yaml` NodeType labels | `topology.kubernetes.io/region: us-va-blacksburg-dc1`, `tenants.demo.vcluster.com/*` | your region and tenant grant labels |
+| Project | `vm-tenants` `allowedTemplates` | your project |
+| `gen_tenant_gpus.py`, `FLEET_DS` | `e8b3387a-...` | your fleet datasource UID (the observability connector Secret's UID) |
+| `stack-gate` repoURL | `github.com/loft-demos/ce-demo-nvidia-gpu-operator-stack` | keep (public) or your fork |
+
+Order: provider cluster template and `KubeVirtProviderCluster` (then **sync the provider
+cluster's template** in the UI, or its new pool never renders), Argo CD templates, Stacks,
+tenant templates, project. Then create a tenant cluster from the template and run the
+Verify commands above.
+
+### Gotchas that cost time here
+
+- **Template changes don't reach a running instance** until it syncs its template (UI
+  **Sync Template**, or `spec.templateRef.syncOnce: true`).
+- **A static pool's host must be visible to the claiming cluster.** NodeType capacity ignores
+  tenant assignment, so a selector that spans a host lent to a tenant can stall the claim
+  forever with `no available BareMetalHost`. Narrow the selector or unassign the host.
+- **Argo CD OCI charts:** `repoURL` must include the chart name
+  (`oci://ghcr.io/nvidia/k8s-test-infra/chart/nvml-mock`); without it ghcr answers 403.
+- **nvml-mock's `gpu.count` must be an integer**, not a string; the chart schema rejects `"1"`.
+- **Key GPU dashboards by `Hostname`.** Every node reports the same GPU UUID.
+- **NVSentinel needs a non-GPU node for its pipeline**, or the drainer can evict itself; and
+  extend `node-drainer.systemNamespaces` to whatever must survive a drain (the mock, your
+  collector, cert-manager).
