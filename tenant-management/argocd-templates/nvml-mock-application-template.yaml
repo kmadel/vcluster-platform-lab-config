@@ -59,9 +59,11 @@ spec:
         namespace: mokka
       project: '{{ .Values.project }}'
       source:
-        # OCI chart ref is <repoURL>/<chart>.
+        # Argo CD resolves an oci:// repoURL as the whole artifact and ignores
+        # chart, so repoURL carries the chart name, as in demo-nvsentinel.
+        # (oci://.../chart alone is a 403 from ghcr.)
         chart: nvml-mock
-        repoURL: oci://ghcr.io/nvidia/k8s-test-infra/chart
+        repoURL: oci://ghcr.io/nvidia/k8s-test-infra/chart/nvml-mock
         targetRevision: '{{ .Values.version }}'
         helm:
           releaseName: nvml-mock
