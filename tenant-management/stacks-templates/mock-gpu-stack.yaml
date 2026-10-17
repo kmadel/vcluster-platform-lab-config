@@ -1,0 +1,117 @@
+apiVersion: management.loft.sh/v1
+kind: StackTemplate
+metadata:
+  name: demo-mock-gpu
+  labels:
+    demo.vcluster.com/shared: "true"
+spec:
+  displayName: Demo - Simulated NVIDIA GPU Stack
+  description: NVIDIA nvml-mock plus the GPU Operator on CPU-only nodes, so every node reports simulated GPUs
+    to the scheduler, nvidia-smi and DCGM. For demos and dashboards; nothing CUDA runs. Gated on the GPUs the
+    scheduler can see, like demo-gpu.
+  icon: https://assets.nvidiagrid.net/ngc/logos/GPUoperator.png
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: gpuProfile
+      label: Simulated GPU Model
+      description: What nvidia-smi and the dashboards report. Present it as simulated.
+      type: string
+      required: true
+      options:
+        - b200
+        - h100
+        - gb200
+        - gb300
+        - a100
+        - l40s
+        - t4
+      defaultValue: b200
+    - variable: gpusPerNode
+      label: Simulated GPUs Per Node
+      type: number
+      required: true
+      defaultValue: '1'
+    - variable: minGPUs
+      label: Minimum Allocatable GPUs
+      description: How many simulated GPUs the scheduler must advertise before the Stack is ready.
+      type: number
+      required: true
+      defaultValue: '1'
+    - variable: gpuNodePool
+      label: GPU Pool Label
+      description: Value of workload.example.com/pool on the nodes that get simulated GPUs.
+      type: string
+      required: true
+      defaultValue: gpu-compute
+    - variable: nvmlMockVersion
+      label: nvml-mock Chart Version
+      type: string
+      defaultValue: 0.5.0
+    - variable: gpuOperatorVersion
+      label: GPU Operator Version
+      description: v26.3.3 is the release NVIDIA's CI validates with nvml-mock.
+      type: string
+      defaultValue: v26.3.3
+    - variable: argoProject
+      label: Argo CD Project
+      type: string
+      defaultValue: default
+  publishedOutputs:
+    - name: gpucount
+      fromTask:
+        task: gpuready
+        output: gpucount
+  tasks:
+    # Every parameter is passed explicitly: a template default only applies when the
+    # parameter is absent, and an empty value is dropped rather than passed.
+    - name: nvml-mock
+      timeout: 15m0s
+      argoCDApplication:
+        templateRef:
+          name: demo-nvml-mock
+        parameters:
+          project: '{{ .Values.argoProject }}'
+          version: '{{ .Values.nvmlMockVersion }}'
+          gpuProfile: '{{ .Values.gpuProfile }}'
+          gpusPerNode: '{{ .Values.gpusPerNode }}'
+          gpuNodePool: '{{ .Values.gpuNodePool }}'
+    - name: gpu-operator
+      dependsOn:
+        - nvml-mock
+      timeout: 30m0s
+      argoCDApplication:
+        templateRef:
+          name: demo-gpu-operator-mock
+        parameters:
+          project: '{{ .Values.argoProject }}'
+          version: '{{ .Values.gpuOperatorVersion }}'
+          gpuNodePool: '{{ .Values.gpuNodePool }}'
+    # Same gate as demo-gpu: holds the Stack until the scheduler advertises the
+    # simulated GPUs. No hyphen in the name, because outputs reference it.
+    - name: gpuready
+      dependsOn:
+        - gpu-operator
+      timeout: 30m0s
+      argoCDApplication:
+        templateRef:
+          name: demo-stack-gate
+        parameters:
+          project: '{{ .Values.argoProject }}'
+          # The gate Job only talks to the API server; there is no CPU pool here.
+          cpuNodePool: '{{ .Values.gpuNodePool }}'
+          capacityMin: '{{ .Values.minGPUs }}'
+          capacityNodeSelector: 'workload.example.com/pool={{ .Values.gpuNodePool }}'
+          contractName: mock-gpu-contract
+          contractData: |
+            gpuPool: {{ .Values.gpuNodePool }}
+            simulated: "true"
+          waitEnabled: 'false'
+      outputs:
+        - name: gpucount
+          fromResource:
+            apiVersion: v1
+            kind: ConfigMap
+            namespace: gpu-stack
+            name: mock-gpu-contract
+            jsonPath: '{.data.observedCount}'

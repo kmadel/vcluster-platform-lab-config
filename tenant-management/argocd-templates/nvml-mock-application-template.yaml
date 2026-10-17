@@ -1,0 +1,99 @@
+# NVIDIA's nvml-mock (k8s-test-infra "Mokka"): a mock libnvidia-ml.so, device nodes and
+# nvidia-smi on CPU-only nodes, so the real device plugin, GFD and dcgm-exporter report
+# GPUs that do not exist. For demos and dashboards only; CUDA is not simulated.
+#
+# Node requirements, all met by vCluster private nodes: containerd 2.x under the
+# systemd unit "containerd", config at /etc/containerd/config.toml (nvidia-ctk adds
+# the conf.d import), NRI on (containerd 2.x default), privileged + hostPID pods.
+# The node agent makes the nvidia runtime containerd's default and restarts
+# containerd; it reverts that when its pod stops.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: demo-nvml-mock
+spec:
+  displayName: Demo - NVIDIA nvml-mock (simulated GPUs)
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: project
+      label: Argo CD Project
+      type: string
+      required: true
+      defaultValue: default
+    - variable: version
+      label: Chart Version
+      type: string
+      required: true
+      defaultValue: 0.5.0
+    - variable: gpuProfile
+      label: Simulated GPU Model
+      description: What nvidia-smi and the dashboards report. Present it as simulated.
+      type: string
+      required: true
+      options:
+        - b200
+        - h100
+        - gb200
+        - gb300
+        - a100
+        - l40s
+        - t4
+      defaultValue: b200
+    - variable: gpusPerNode
+      label: Simulated GPUs Per Node
+      type: number
+      required: true
+      defaultValue: '1'
+    - variable: gpuNodePool
+      label: GPU Pool Label
+      description: Value of workload.example.com/pool on the nodes that get simulated GPUs.
+      type: string
+      required: true
+      defaultValue: gpu-compute
+  template:
+    spec:
+      # Not "default": the NRI plugin skips pods in the release's own namespace, and
+      # NVIDIA's guides all use mokka.
+      destination:
+        namespace: mokka
+      project: '{{ .Values.project }}'
+      source:
+        # OCI chart ref is <repoURL>/<chart>.
+        chart: nvml-mock
+        repoURL: oci://ghcr.io/nvidia/k8s-test-infra/chart
+        targetRevision: '{{ .Values.version }}'
+        helm:
+          releaseName: nvml-mock
+          values: |
+            gpu:
+              profile: {{ .Values.gpuProfile | quote }}
+              # The chart schema wants an integer, not a string.
+              count: {{ .Values.gpusPerNode | default "1" }}
+              # Time-varying temperature, power and utilization, so dashboards move.
+              # Utilization is pinned: enabling dynamic metrics otherwise swaps the
+              # profile's steady pattern for a 0-100% burst.
+              dynamicMetrics:
+                enabled: true
+                utilization:
+                  pattern: steady
+                  gpu_min: 15
+                  gpu_max: 75
+                  memory_min: 10
+                  memory_max: 60
+            nodeSelector:
+              workload.example.com/pool: {{ .Values.gpuNodePool | quote }}
+            priorityClassName: system-node-critical
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
+          limit: 10
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

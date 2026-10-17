@@ -1,0 +1,158 @@
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterTemplate
+metadata:
+  name: private-nodes-kubevirt-mock-gpu-stack
+  annotations:
+    vcluster.com/template-icon: gpu.svg
+  labels:
+    demo.vcluster.com/shared: "true"
+spec:
+  displayName: Private Nodes - KubeVirt VMs with Simulated GPUs
+  description: |
+    One mock "4-GPU server" carved into 1-GPU VMs: each KubeVirt VM is a node of this
+    tenant cluster, and NVIDIA nvml-mock makes each one report a single simulated GPU
+    to the scheduler, nvidia-smi and DCGM. The GPU Operator and the Fleet GPU dashboards
+    run unchanged. For demos only: no physical GPU is involved and nothing CUDA runs.
+    The VMs share one xlarge host (mock-gpu-host), so one of these clusters at a time.
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: kubernetesVersion
+      label: Kubernetes Version
+      description: |
+        Control plane Kubernetes version. Updating this value triggers a rolling upgrade of the vCluster control plane. The VM node kubelets are re-provisioned separately via the NodeClaim lifecycle.
+      options:
+        - v1.34.12
+        - v1.35.9
+        - v1.36.5
+      defaultValue: v1.36.5
+      section: Control Plane
+    - variable: gpuVMCount
+      label: GPU VMs
+      description: One simulated GPU each. The mock host fits four.
+      type: number
+      required: true
+      options:
+        - '1'
+        - '2'
+        - '3'
+        - '4'
+      defaultValue: '4'
+      section: Control Plane
+    - variable: gpuProfile
+      label: Simulated GPU Model
+      description: What nvidia-smi and the dashboards report. Present it as simulated.
+      type: string
+      required: true
+      options:
+        - b200
+        - h100
+        - gb200
+        - gb300
+        - a100
+        - l40s
+        - t4
+      defaultValue: b200
+      section: Simulated GPUs
+    - variable: argoProject
+      label: Argo CD Project
+      type: string
+      defaultValue: default
+      section: Argo CD
+  template:
+    pro:
+      enabled: true
+    helmRelease:
+      chart:
+        name: vcluster
+        repo: https://charts.loft.sh
+        version: "0.37.3"
+      values: |-
+        privateNodes:
+          enabled: true
+          vpn:
+            enabled: true
+          autoNodes:
+            - provider: kubevirt-us-va-blacksburg-dc1
+              static:
+                - name: gpu
+                  quantity: {{ .Values.gpuVMCount }}
+                  # No NodeProfile: gpu-compute's nvidia.com/gpu taint would leave
+                  # CoreDNS and the GPU Operator controllers nowhere to run, since
+                  # there is no CPU service VM. The pool label alone is enough for
+                  # nvml-mock, the device plugin and the gate.
+                  nodeLabels:
+                    workload.example.com/pool: gpu-compute
+                    demo.vcluster.com/simulated-gpu: "true"
+                  nodeTypeSelector:
+                    - property: vcluster.com/node-type
+                      value: kvm-mock-gpu
+          # Same pull-through caches as the real GPU template.
+          joinNode:
+            containerd:
+              enabled: true
+              registry:
+                configPath: /etc/containerd/certs.d
+                mirrors:
+                  registry.k8s.io:
+                    hosts:
+                      - server: http://192.168.50.61:5000
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  quay.io:
+                    hosts:
+                      - server: http://192.168.50.61:5001
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  nvcr.io:
+                    hosts:
+                      - server: http://192.168.50.61:5002
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  ghcr.io:
+                    hosts:
+                      - server: http://192.168.50.61:5003
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  docker.io:
+                    hosts:
+                      - server: http://192.168.50.61:5004
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+        # Off the provider's pod and service CIDRs (10.64.0.0/16, 10.128.0.0/16):
+        # the VMs use bridge binding, so node IPs are provider pod IPs. See the
+        # real GPU template.
+        networking:
+          podCIDR: 10.244.0.0/16
+          serviceCIDR: 10.96.0.0/16
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
+          distro:
+            k8s:
+              version: "{{ .Values.kubernetesVersion }}"
+          statefulSet:
+            scheduling:
+              nodeSelector:
+                kubernetes.io/hostname: vmetal-w02
+        integrations:
+          argoCD:
+            enabled: true
+            connector: '{{ if contains "--" .Values.loft.project }}demo-lab-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}demo-lab{{ end }}'
+        deploy:
+          cni:
+            flannel:
+              enabled: true
+          stacks:
+            - name: gpu
+              displayName: Demo - Simulated GPU Stack
+              templateRef:
+                name: demo-mock-gpu
+              parameters:
+                gpuProfile: {{ .Values.gpuProfile | quote }}
+                gpusPerNode: "1"
+                minGPUs: {{ .Values.gpuVMCount | quote }}
+                gpuNodePool: gpu-compute
+                argoProject: {{ .Values.argoProject | quote }}

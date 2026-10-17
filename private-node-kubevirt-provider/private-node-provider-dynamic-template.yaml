@@ -64,6 +64,25 @@ spec:
                       operator: In
                       values:
                         - xlarge-gpu
+                # The mock "4-GPU server": a plain xlarge (8 CPU, 16 GiB, no GPU) that
+                # holds the kvm-mock-gpu VMs. The GPUs exist only inside each VM's
+                # tenant cluster, simulated by nvml-mock, so nothing here is bound to
+                # vfio-pci and no HostDevice selects this node. Static for the same
+                # reason as gpu-host: one dedicated machine, not autoscaled capacity.
+                - name: mock-gpu-host
+                  quantity: 1
+                  properties:
+                    vcluster.com/os-image: ubuntu-noble-bootstrap
+                  nodeLabels:
+                    kubevirt.io/schedulable: "true"
+                    machine-type.node.kubevirt.io/q35: "true"
+                    # Pins kvm-mock-gpu here; every other NodeType avoids it.
+                    demo.vcluster.com/mock-gpu-host: "true"
+                  nodeTypeSelector:
+                    - property: vcluster.com/profile
+                      operator: In
+                      values:
+                        - xlarge
           vpn:
             enabled: false
         networking:

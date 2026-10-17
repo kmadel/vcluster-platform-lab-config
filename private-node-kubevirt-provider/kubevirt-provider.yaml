@@ -147,6 +147,8 @@ spec:
                               - matchExpressions:
                                   - key: demo.vcluster.com/gpu-host
                                     operator: DoesNotExist
+                                  - key: demo.vcluster.com/mock-gpu-host
+                                    operator: DoesNotExist
             - name: kvm-small-reserved
               displayName: KVM VM (2 vCPU, 1 CPU request, 2 GiB) reserved
               maxCapacity: 4
@@ -173,6 +175,8 @@ spec:
                             nodeSelectorTerms:
                               - matchExpressions:
                                   - key: demo.vcluster.com/gpu-host
+                                    operator: DoesNotExist
+                                  - key: demo.vcluster.com/mock-gpu-host
                                     operator: DoesNotExist
             # CPU service workers for the GPU tenant template (cert-manager, the GPU
             # Operator controller, NVSentinel). kvm-small's 2 GiB is too tight for
@@ -203,6 +207,8 @@ spec:
                             nodeSelectorTerms:
                               - matchExpressions:
                                   - key: demo.vcluster.com/gpu-host
+                                    operator: DoesNotExist
+                                  - key: demo.vcluster.com/mock-gpu-host
                                     operator: DoesNotExist
             # The RTX 2000 Ada, passed through twice: vmetal -> provider node
             # rack-c-u12-xlarge-gpu (libvirt hostdev behind a vIOMMU) -> this VM
@@ -260,3 +266,43 @@ spec:
                           requests:
                             cpu: "6"
                             memory: 10Gi
+            # Four 1-GPU VMs on the mock "4-GPU server" (mock-gpu-host in
+            # private-node-provider-dynamic-template.yaml). The VM gets no GPU device:
+            # nvml-mock inside its tenant cluster simulates one GPU per node, so the
+            # device plugin, nvidia-smi and dcgm-exporter all see a GPU that is not
+            # there. For dashboards and demos only; nothing CUDA runs. No extended
+            # resource on this type, so it is claimable like any CPU type.
+            # Sized so four fit the 8 CPU / 16 GiB host with room for its kubelet,
+            # KubeVirt and the virt-launcher overhead.
+            - name: kvm-mock-gpu
+              displayName: KVM VM + 1 simulated GPU (2 CPU, 3 GiB)
+              maxCapacity: 4
+              properties:
+                # The mock host is a provider auto node, like the GPU host.
+                kubevirt.vcluster.com/capacity-type: on-demand
+                # GPU Operator images (device plugin, GFD, dcgm-exporter, validator)
+                # plus nvml-mock; no driver build, so well under the real GPU type.
+                kubevirt.vcluster.com/root-disk-size: 30Gi
+                vcluster.com/accelerator: mock-gpu
+              metadata:
+                labels:
+                  tenants.demo.vcluster.com/globex: "true"
+                  tenants.demo.vcluster.com/acme: "true"
+                  topology.kubernetes.io/region: us-va-blacksburg-dc1
+              mergeVirtualMachineTemplate:
+                spec:
+                  template:
+                    spec:
+                      affinity:
+                        nodeAffinity:
+                          requiredDuringSchedulingIgnoredDuringExecution:
+                            nodeSelectorTerms:
+                              - matchExpressions:
+                                  - key: demo.vcluster.com/mock-gpu-host
+                                    operator: In
+                                    values: ["true"]
+                      domain:
+                        resources:
+                          requests:
+                            cpu: "1"
+                            memory: 3Gi

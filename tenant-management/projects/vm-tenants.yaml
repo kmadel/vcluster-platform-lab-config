@@ -16,6 +16,9 @@ spec:
     - kind: VirtualClusterTemplate
       group: storage.loft.sh
       name: private-nodes-kubevirt-static-gpu-stack
+    - kind: VirtualClusterTemplate
+      group: storage.loft.sh
+      name: private-nodes-kubevirt-mock-gpu-stack
   allowedNodeTypes: null
   allowedNodeProfiles: null
   requireTemplate: {}
