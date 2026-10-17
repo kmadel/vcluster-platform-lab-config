@@ -1,0 +1,1849 @@
+{
+  "uid": "vcluster-tenant-gpus",
+  "title": "Tenant Cluster GPUs",
+  "description": "GPUs per tenant cluster from DCGM, with project and tenant cluster selectors. Uses only series that report real values on hardware and on nvml-mock.",
+  "tags": [
+    "vcluster",
+    "fleet-observability",
+    "gpu",
+    "tenant-cluster",
+    "environment-owned"
+  ],
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "links": [
+    {
+      "title": "Fleet Overview",
+      "type": "link",
+      "url": "/d/vcluster-fleet-observability-operations",
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": false,
+      "tooltip": ""
+    },
+    {
+      "title": "GPU Overview",
+      "type": "link",
+      "url": "/d/vcluster-gpu-overview",
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": false,
+      "tooltip": ""
+    },
+    {
+      "title": "Cluster Operations",
+      "type": "link",
+      "url": "/d/vcluster-cluster-operations",
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": false,
+      "tooltip": ""
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 2,
+        "current": {
+          "text": "e8b3387a-24f9-4f94-9ffc-555c6cb944f8",
+          "value": "e8b3387a-24f9-4f94-9ffc-555c6cb944f8"
+        },
+        "regex": "",
+        "refresh": 1
+      },
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "hide": 0,
+        "query": {
+          "query": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_instance!=\"\"}, vcluster_platform_project)",
+          "refId": "StandardVariableQuery"
+        },
+        "definition": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_instance!=\"\"}, vcluster_platform_project)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "tenant",
+        "label": "Tenant cluster",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "hide": 0,
+        "query": {
+          "query": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance!=\"\"}, vcluster_platform_instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "definition": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance!=\"\"}, vcluster_platform_instance)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "node",
+        "label": "Node",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "hide": 0,
+        "query": {
+          "query": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, Hostname)",
+          "refId": "StandardVariableQuery"
+        },
+        "definition": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, Hostname)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "model",
+        "label": "GPU model",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "hide": 0,
+        "query": {
+          "query": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, modelName)",
+          "refId": "StandardVariableQuery"
+        },
+        "definition": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, modelName)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Tenant clusters",
+      "description": "Tenant clusters with at least one GPU in the selection.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(count by (vcluster_platform_instance) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "GPUs",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Avg. GPU util.",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Avg. tensor active",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "100 * avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Total power",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(DCGM_FI_DEV_POWER_USAGE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Max temperature",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 87
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max(DCGM_FI_DEV_GPU_TEMP{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "GPU memory",
+      "description": "Total framebuffer across the selected GPUs.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum((DCGM_FI_DEV_FB_FREE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} + DCGM_FI_DEV_FB_USED{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} + DCGM_FI_DEV_FB_RESERVED{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}))",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "XID errors (1h)",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(increase(DCGM_EXP_XID_ERRORS_COUNT_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h])) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "GPU inventory",
+      "description": "One row per GPU. Memory is the GPU's total framebuffer.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu, modelName, DCGM_FI_DRIVER_VERSION) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "B",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (100 * DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "C",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_GPU_TEMP{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "D",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_POWER_USAGE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "E",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_DEV_FB_FREE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} + DCGM_FI_DEV_FB_USED{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} + DCGM_FI_DEV_FB_RESERVED{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}))",
+          "refId": "F",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (increase(DCGM_EXP_XID_ERRORS_COUNT_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]))",
+          "refId": "G",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value #A": true
+            },
+            "indexByName": {
+              "vcluster_platform_project": 0,
+              "vcluster_platform_instance": 1,
+              "Hostname": 2,
+              "gpu": 3,
+              "modelName": 4,
+              "DCGM_FI_DRIVER_VERSION": 5
+            },
+            "renameByName": {
+              "vcluster_platform_project": "Project",
+              "vcluster_platform_instance": "Tenant cluster",
+              "Hostname": "Node",
+              "gpu": "GPU",
+              "modelName": "Model",
+              "DCGM_FI_DRIVER_VERSION": "Driver",
+              "Value #B": "Utilization",
+              "Value #C": "Tensor active",
+              "Value #D": "Temperature",
+              "Value #E": "Power",
+              "Value #F": "Memory",
+              "Value #G": "XID errors (1h)"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Utilization"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tensor active"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Temperature"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "celsius"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Power"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "watt"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "decmbytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "XID errors (1h)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Utilization"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tensor active"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Tenant cluster",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Utilization",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "GPU utilization",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Tensor core activity",
+      "description": "Share of cycles the tensor pipe is active.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (100 * DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Graphics engine and memory activity",
+      "description": "Averages per tenant cluster.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "100 * avg by (vcluster_platform_instance) (DCGM_FI_PROF_GR_ENGINE_ACTIVE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} graphics engine"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "100 * avg by (vcluster_platform_instance) (DCGM_FI_PROF_DRAM_ACTIVE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "B",
+          "legendFormat": "{{vcluster_platform_instance}} memory interface"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg by (vcluster_platform_instance) (DCGM_FI_DEV_MEM_COPY_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "C",
+          "legendFormat": "{{vcluster_platform_instance}} memory copy"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "PCIe throughput",
+      "description": "Received above the axis, transmitted below.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_PROF_PCIE_RX_BYTES{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}} rx"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "-1 * max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_PROF_PCIE_TX_BYTES{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "B",
+          "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}} tx"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Power and thermals",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "panels": []
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Power draw",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 31
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_POWER_USAGE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "GPU temperature",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 31
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_GPU_TEMP{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "row",
+      "title": "By tenant cluster",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "panels": []
+    },
+    {
+      "id": 19,
+      "type": "bargauge",
+      "title": "GPUs per tenant cluster",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (vcluster_platform_instance) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "bargauge",
+      "title": "Avg. GPU utilization per tenant cluster",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg by (vcluster_platform_instance) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "bargauge",
+      "title": "Power per tenant cluster",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (vcluster_platform_instance) (DCGM_FI_DEV_POWER_USAGE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "row",
+      "title": "GPU health",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "panels": []
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "XID errors (1h)",
+      "description": "A rise here is what NVSentinel acts on.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 48
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (increase(DCGM_EXP_XID_ERRORS_COUNT_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]))",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "Remapped rows",
+      "description": "Memory rows remapped in the last hour.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 48
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (increase(DCGM_FI_DEV_UNCORRECTABLE_REMAPPED_ROWS_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]))",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}} uncorrectable"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (increase(DCGM_FI_DEV_CORRECTABLE_REMAPPED_ROWS_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]))",
+          "refId": "B",
+          "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}} correctable"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "type": "timeseries",
+      "title": "PCIe replays (1h)",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 48
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (increase(DCGM_FI_DEV_PCIE_REPLAY_COUNTER_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]))",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "type": "row",
+      "title": "GPU nodes",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      },
+      "panels": []
+    },
+    {
+      "id": 27,
+      "type": "timeseries",
+      "title": "Node CPU busy",
+      "description": "Host CPU of each GPU node (for VM nodes, the guest).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 57
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "100 * (1 - sum by (vcluster_platform_instance, k8s_node_name) (rate(system_cpu_time_seconds_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",k8s_node_name=~\"$node\",state=\"idle\"}[5m])) / sum by (vcluster_platform_instance, k8s_node_name) (rate(system_cpu_time_seconds_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",k8s_node_name=~\"$node\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} / {{k8s_node_name}}"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "type": "timeseries",
+      "title": "Node memory used",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 57
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "100 * sum by (vcluster_platform_instance, k8s_node_name) (system_memory_usage_bytes{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",k8s_node_name=~\"$node\",state=~\"used|buffered\"}) / sum by (vcluster_platform_instance, k8s_node_name) (system_memory_usage_bytes{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",k8s_node_name=~\"$node\"})",
+          "refId": "A",
+          "legendFormat": "{{vcluster_platform_instance}} / {{k8s_node_name}}"
+        }
+      ]
+    }
+  ]
+}

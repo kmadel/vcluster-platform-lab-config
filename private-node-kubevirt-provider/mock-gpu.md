@@ -5,9 +5,20 @@ cluster. No physical GPU is involved: NVIDIA's nvml-mock simulates one GPU per n
 device plugin, `nvidia-smi`, GFD and dcgm-exporter all report a GPU, and the Fleet GPU
 dashboards populate. Nothing CUDA runs. Present the GPU model as simulated.
 
-**Status: written 2026-10-17, not yet run.** Every template renders and validates
-(Go templates with sprig, vCluster 0.37.2/0.37.3 schema, nvml-mock 0.5.0 and GPU Operator
-v26.3.3 `helm template`), but nothing has booted.
+**Status: verified 2026-10-17** with `mock-gpu-test` in `vm-tenants` (4.13.0-alpha.19,
+`b200`, 4 VMs). Mock host Ready about 5 minutes after its claim took a host; VMs joined about
+3 minutes after their disk imports; the Stack was Healthy about 4 minutes after nvml-mock
+started. Every node advertised `nvidia.com/gpu: 1` as an NVIDIA B200 (184,320 MiB, driver
+580.65.06), and 24 DCGM series reached the Fleet Prometheus with the tenant's
+`vcluster_platform_project` and `vcluster_platform_instance` labels. Dashboard:
+**Tenant Cluster GPUs** (`/grafana/d/vcluster-tenant-gpus`, `observability/grafana/`).
+
+## Don't assign the mock host to a tenant
+
+The static pool selects any xlarge. If the xlarge it picks is assigned to a tenant
+(`tenant.vcluster.com/exclusive-to`), the provider cluster's claim can't see it and retries
+"no available BareMetalHost" forever, because NodeType capacity ignores the assignment. On
+2026-10-17 it picked `rack-a-u20-xlarge`, then assigned to acme; unassigning it fixed it.
 
 ## Pieces
 
@@ -49,16 +60,22 @@ kubectl -n gpu-operator exec ds/nvidia-device-plugin-daemonset -- nvidia-smi -L
 Expect `nvidia.com/gpu: 1` on every node, the Stack Ready once all four are advertised,
 and DCGM series (`DCGM_FI_DEV_GPU_UTIL` between 15 and 75%) on the Fleet GPU dashboards.
 
-## Risks to watch on the first run
+## What the first run showed
 
-- **containerd restart.** nvml-mock's node agent makes the `nvidia` runtime containerd's
-  default and restarts containerd through systemd. The vCluster join writes
-  `/etc/containerd/config.toml` with no `imports`; nvidia-ctk is expected to add the
-  `conf.d` import. If pods fail with an unknown runtime, check that file first.
-- **Unmocked DCGM fields.** The exporter field list is the real stack's. Fields the mock
-  doesn't implement (encoder, NVLink, vGPU license) should be skipped; if dcgm-exporter
-  crash-loops instead, trim the list.
-- **GFD machine type.** `GFD_MACHINE_TYPE_FILE` points at `/etc/nvml-mock/machine-type`
-  as in NVIDIA's guide; if GFD labels look wrong, drop that env.
-- **Capacity.** Four VMs plus the host's kubelet, KubeVirt and virt-launcher overhead come
-  close to 16 GiB. If the fourth VM stays Pending, lower `kvm-mock-gpu` memory to 2.5Gi.
+- **containerd restart: fine.** The node agent wrote `/etc/containerd/conf.d/50-mokka.toml`,
+  restarted containerd through systemd and set up the `nvidia` handler; NRI connected
+  (containerd 2.2.3) and every node stayed Ready.
+- **DCGM fields.** dcgm-exporter skips the fields the mock doesn't implement (vGPU license,
+  NVLink CRC) without crashing. Of the 24 it serves, these move with time: GPU utilization,
+  memory copy utilization, temperature, power, graphics engine, tensor and DRAM activity,
+  PCIe rx/tx. Static or zero on the mock: framebuffer used, memory temperature, SM and memory
+  clocks, total energy, encoder/decoder, NVLink bandwidth. The Tenant Cluster GPUs dashboard
+  uses only the first group plus framebuffer capacity and the error counters.
+- **Same UUID on every node.** The profile hard-codes GPU UUIDs, so with one GPU per node
+  every node reports `GPU-b2000000-0000-0000-0000-000000000000`. Key GPUs by `Hostname`,
+  never `UUID`.
+- **Counters gain `_total`** on the way into Prometheus (`DCGM_EXP_XID_ERRORS_COUNT_total`).
+- **Capacity: fine.** All four VMs ran on the xlarge at 1 CPU and 3 GiB requested each.
+- **Control plane cluster views show nothing for this tenant on the KubeVirt provider.** Its
+  control plane runs on spark-cluster (`vcluster_platform_hosted_on`); only its VMs run on
+  the provider cluster. Use the fleet view, or spark-cluster's.
