@@ -1,0 +1,225 @@
+# NVSentinel with the full detect -> quarantine -> drain pipeline, against nvml-mock's
+# simulated GPUs. Values follow NVIDIA's k8s-test-infra NVSentinel guide
+# (docs/guides/nv-sentinel/nvsentinel-values.yaml, validated on v1.21.0), adapted from Kind:
+# the system modules go to the CPU service pool instead of the Kind control-plane node,
+# so the node drainer never evicts the pipeline doing the draining.
+#
+# Unlike demo-nvsentinel (detection only, dryRun), this one cordons and drains for real.
+# The fault it exercises is GpuThermalMarginWatch: heat a GPU with
+#   kubectl -n mokka exec <nvml-mock pod on the node> -c nvml-mock-nri -- nvml-mock-ctl temp --gpu 0 142
+# and cool it with `nvml-mock-ctl reset --gpu 0`. See private-node-kubevirt-provider/mock-gpu.md.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: demo-nvsentinel-mock
+spec:
+  displayName: Demo - NVSentinel (simulated GPUs, quarantine and drain)
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: project
+      label: Argo CD Project
+      type: string
+      required: true
+      defaultValue: default
+    - variable: version
+      label: Chart Version and Image Tag
+      description: v1.21.0 is the release NVIDIA's mock guide validates.
+      type: string
+      required: true
+      defaultValue: v1.21.0
+    - variable: cpuNodePool
+      label: CPU Service Pool Label
+      description: Value of workload.example.com/pool on the CPU service worker that runs the pipeline.
+      type: string
+      required: true
+      defaultValue: cpu-services
+    - variable: gpuNodePool
+      label: GPU Pool Label
+      type: string
+      required: true
+      defaultValue: gpu-compute
+  template:
+    spec:
+      destination:
+        namespace: nvsentinel
+      project: '{{ .Values.project }}'
+      source:
+        # Argo CD resolves an oci:// repoURL as the whole artifact, so it names the chart.
+        chart: nvsentinel
+        repoURL: oci://ghcr.io/nvidia/nvsentinel
+        targetRevision: '{{ .Values.version }}'
+        helm:
+          releaseName: nvsentinel
+          values: |
+            global:
+              dryRun: false
+              image:
+                tag: '{{ .Values.version }}'
+              nodeSelector:
+                kubernetes.io/os: linux
+                workload.example.com/pool: {{ .Values.gpuNodePool | quote }}
+              tolerations: []
+              # The pipeline (store, quarantine, drainer) lives off the GPU nodes.
+              systemNodeSelector:
+                kubernetes.io/os: linux
+                workload.example.com/pool: {{ .Values.cpuNodePool | quote }}
+              systemNodeTolerations: []
+              dcgm:
+                mode: operator-service
+                enabled: true
+                service:
+                  endpoint: nvidia-dcgm.gpu-operator.svc
+                  port: 5555
+              # Percona names the replica-set service <cluster>-rs0; it requires TLS and
+              # the chart issues the client certificate through cert-manager.
+              datastore:
+                provider: mongodb
+                connection:
+                  host: mongodb-rs0.nvsentinel.svc.cluster.local
+                  port: 27017
+                  database: HealthEventsDatabase
+                  collection: HealthEvents
+                  tokenCollection: ResumeTokens
+                  extraParams:
+                    replicaSet: rs0
+                    tls: "true"
+                options:
+                  maxConnections: "25"
+                  maxIdleConnections: "10"
+                  connectionMaxLifetime: 1h
+                  pollInterval: 5s
+              gpuHealthMonitor:
+                enabled: true
+              syslogHealthMonitor:
+                enabled: false
+              cspHealthMonitor:
+                enabled: false
+              kubernetesObjectMonitor:
+                enabled: false
+              nicHealthMonitor:
+                enabled: false
+              mongodbStore:
+                enabled: true
+              faultQuarantine:
+                enabled: true
+              nodeDrainer:
+                enabled: true
+              faultRemediation:
+                enabled: false
+              janitor:
+                enabled: false
+              janitorProvider:
+                enabled: false
+              healthEventsAnalyzer:
+                enabled: false
+              labeler:
+                enabled: true
+              # Reads each GPU's slowdown T.Limit offset (NVML field 194, which nvml-mock
+              # exposes); GpuThermalMarginWatch stays unarmed without it.
+              metadataCollector:
+                enabled: true
+              eventExporter:
+                enabled: false
+              preflight:
+                enabled: false
+              tracing:
+                enabled: false
+                endpoint: ''
+              auditLogging:
+                enabled: false
+            podMonitor:
+              enabled: false
+            networkPolicy:
+              enabled: false
+            # No driver DaemonSet with nvml-mock, so the labeler never sees one; this sets
+            # the driver-installed label the metadata collector selects on.
+            labeler:
+              assumeDriverInstalled: true
+            gpu-health-monitor:
+              dcgmHealthCheck:
+                # The mock reports this on every GPU at boot. Left active it keeps a cooled
+                # node quarantined forever, so the uncordon never happens.
+                suppressedErrorCodes:
+                  - DCGM_FR_NVLINK_EFFECTIVE_BER_THRESHOLD
+              # The watch defaults to store-only, which never cordons.
+              dcgmFieldsMonitoring:
+                gpuTempLimitMonitoringEnabled: true
+                gpuTempLimitStoreOnly: false
+            # Node-local socket service for the health monitors, so it stays with them.
+            platformConnector:
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: workload.example.com/pool
+                        operator: In
+                        values:
+                        - {{ .Values.gpuNodePool | quote }}
+            # Evict immediately so the drain and reschedule are visible in a demo. The chart's
+            # system namespaces cover only nvsentinel, kube-system and gpu-operator; the mock
+            # driver, the Fleet collector, cert-manager and the Stack's gates must survive a
+            # drain too.
+            node-drainer:
+              systemNamespaces: "^(nvsentinel|kube-system|gpu-operator|mokka|observability|cert-manager|kube-flannel|local-path-storage|gpu-stack)$"
+              userNamespaces:
+                - name: "*"
+                  mode: Immediate
+            # Trips at 50% of GPU nodes cordoned in 5 minutes, which a 4-node demo hits with
+            # two cordons and then halts everything, the uncordon included. The chart asks a
+            # full CPU and 1 GiB; a demo's event rate needs a fraction of that, and the CPU
+            # service VM has 2 CPUs for everything.
+            fault-quarantine:
+              circuitBreaker:
+                enabled: false
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+            mongodb-store:
+              useBitnami: false
+              usePerconaOperator: true
+              # Off the GPU nodes, so a GPU drain never takes the store's operator.
+              psmdb-operator:
+                nodeSelector:
+                  workload.example.com/pool: {{ .Values.cpuNodePool | quote }}
+              psmdb-db:
+                # One member is enough for change streams; three do not fit a demo node.
+                unsafeFlags:
+                  replsetSize: true
+                replsets:
+                  rs0:
+                    size: 1
+                    nodeSelector:
+                      workload.example.com/pool: {{ .Values.cpuNodePool | quote }}
+                    resources:
+                      requests:
+                        cpu: 250m
+                        memory: 512Mi
+                      limits:
+                        cpu: "1"
+                        memory: 2Gi
+                    volumeSpec:
+                      pvc:
+                        resources:
+                          requests:
+                            storage: 2Gi
+                    sidecars: []
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 10m
+          limit: 20
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - SkipDryRunOnMissingResource=true

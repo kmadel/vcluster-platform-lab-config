@@ -32,6 +32,12 @@ spec:
       type: string
       required: true
       defaultValue: gpu-compute
+    - variable: standaloneDCGM
+      label: Standalone DCGM Host Engine
+      description: Runs nv-hostengine as its own DaemonSet with the nvidia-dcgm Service on 5555, which
+        NVSentinel polls. Off, dcgm-exporter embeds its own host engine, which is enough for metrics.
+      type: boolean
+      defaultValue: 'false'
   template:
     spec:
       destination:
@@ -53,8 +59,10 @@ spec:
               enabled: false
             toolkit:
               enabled: false
+            # Standalone nv-hostengine only when NVSentinel needs its 5555 Service (NVIDIA's
+            # NVSentinel-on-nvml-mock guide); dcgm-exporter then uses it instead of its own.
             dcgm:
-              enabled: false
+              enabled: {{ eq (.Values.standaloneDCGM | toString) "true" }}
             mig:
               strategy: none
             migManager:
