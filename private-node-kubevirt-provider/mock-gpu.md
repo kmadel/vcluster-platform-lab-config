@@ -216,6 +216,47 @@ read Karpenter's view in the tenant's control plane pod, not the events (Karpent
 de-duplicates them):
 `kubectl --context <control plane cluster> -n <tenant namespace> logs <tenant>-0 | grep -iE "disruption|consolidat"`.
 
+## Variant: every GPU node dynamic, failed nodes retired
+
+**Status: verified 2026-10-18**, end to end with no manual step and no recovery step.
+
+Template **Private Nodes - KubeVirt VMs with Simulated GPUs, NVSentinel and Dynamic GPU Nodes**
+(`private-nodes-kubevirt-mock-gpu-nvsentinel-dynamic`, Stack `demo-mock-gpu-nvsentinel-dynamic`):
+no static GPU pool. One dynamic `gpu` pool (limit `gpuVMCount + spareGPUs`, tainted, full
+NodeType name) supplies every GPU node, alongside the static CPU service VM and the
+`scheduler-headroom` pool.
+
+- **The workload brings up the GPUs.** The Stack's first task, `gpu-workload`
+  (`demo-gpu-workload`, `charts/gpu-workload` in this repo), creates `gpuVMCount` pods that each
+  request one GPU. They go Pending, Auto Nodes launches a GPU VM per pod, nvml-mock and the GPU
+  Operator land on them, and the GPU and DCGM gates pass as in the other templates. Everything
+  else in the Stack installs with no GPU node present. Bring-up took about 12 minutes, the same
+  as the static variant.
+- **A failed node is retired, not nursed back.** Karpenter's disruption checks don't look at
+  cordons, so the drained node (empty but for DaemonSets, and dynamic) is consolidated away
+  a minute or so after its drain, freeing its slot, while the evicted pod's replacement node
+  comes up. No cooling needed.
+- **The workload is Argo CD's.** `demo.sh workload` and `reset` leave it alone in this variant;
+  delete the cluster's GPU pods and the GPU nodes scale to zero (and take about 5 minutes to
+  come back), so keep it running between takes.
+
+What happened (tenant A with `gpuVMCount: 2`, `spareGPUs: 1`; tenant B holding one slot):
+
+| t | |
+| --- | --- |
+| 0 s | `nvml-mock-ctl temp --gpu 0 142` on a GPU node |
+| +14 s | NVSentinel cordons and drains it; the pod goes Pending |
+| +25 s | Auto Nodes claims the reserve slot for a replacement |
+| +122 s | Replacement joins |
+| +166 s | Karpenter starts retiring the failed node (`karpenter.sh/disrupted`) |
+| +209 s | The failed VM's slot is released |
+| +220 s | Failed node gone |
+| +318 s | Workload running on the replacement |
+
+With real GPU passthrough, retiring the VM frees the physical GPU for reuse; keeping a failed
+GPU out of the pool would be a device-health concern below Auto Nodes. With nvml-mock the
+"failed" GPU was never real, so reuse is harmless.
+
 ## Run it in your own environment
 
 The lab build uses Metal3 hosts, KubeVirt VMs and a GitOps repo, but the simulated-GPU part
