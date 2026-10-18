@@ -20,6 +20,11 @@ The static pool selects any xlarge. If the xlarge it picks is assigned to a tena
 "no available BareMetalHost" forever, because NodeType capacity ignores the assignment. On
 2026-10-17 it picked `rack-a-u20-xlarge`, then assigned to acme; unassigning it fixed it.
 
+**Recording a demo of it:** [`mock-gpu-demo/video-script.md`](mock-gpu-demo/video-script.md) is a
+scene-by-scene video script (about 7 minutes, with speed-up markers), and
+[`mock-gpu-demo/demo.sh`](mock-gpu-demo/demo.sh) turns the on-camera steps into one-liners
+(`status`, `smi`, `pick`, `heat`, `watch`, `cool`, `reset`).
+
 ## Pieces
 
 | File | What |
