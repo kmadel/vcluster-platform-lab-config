@@ -118,7 +118,7 @@ Heat one GPU past its slowdown threshold (142 °C is the guide's value):
 ```sh
 NODE=<a node running a gpu-workload pod>
 MOCK=$(kubectl -n mokka get pod -o name --field-selector spec.nodeName=$NODE)
-kubectl -n mokka exec $MOCK -c nvml-mock-nri -- nvml-mock-ctl temp --gpu 0 142
+kubectl -n mokka exec $MOCK -c node-agent -- nvml-mock-ctl temp --gpu 0 142
 kubectl get node $NODE -o jsonpath='{.spec.unschedulable}{"\n"}{range .status.conditions[?(@.type=="GpuThermalMarginWatch")]}{.status} {.message}{end}{"\n"}'
 kubectl get pods -l app=gpu-workload -o wide -w     # evicted, rescheduled elsewhere
 ```
@@ -131,7 +131,7 @@ node. The evicted pod took its full 30 s grace period (`sleep` ignores SIGTERM).
 Cool it, and NVSentinel uncordons the node on its own:
 
 ```sh
-kubectl -n mokka exec $MOCK -c nvml-mock-nri -- nvml-mock-ctl reset --gpu 0
+kubectl -n mokka exec $MOCK -c node-agent -- nvml-mock-ctl reset --gpu 0
 ```
 
 On the Tenant Cluster GPUs dashboard the GPU's temperature jumps from about 60 to **95 °C**
@@ -145,10 +145,12 @@ ECC, Xid; `--mode healthy` clears it), and pins for `util`, `power`, `clocks`, `
 
 ### What the first run showed
 
-- **Stack tasks can show Failed while they wait for a node.** cert-manager went Failed
-  (reason Degraded) before the CPU service VM joined; it was retried from the UI. Pods
-  Pending for lack of a node is the trigger: retry the task (UI, or the
-  `platform.vcluster.com/stack-retry` annotation) once the node is in.
+- **Stack tasks can show Failed while they are still starting.** cert-manager (waiting for
+  its node) and NVSentinel (Percona CRDs without status conditions yet) both went Failed with
+  reason Degraded while their health was Progressing. On 2026-10-18 the NVSentinel task went
+  back to Healthy on its own once its pods were up, so wait first; retry the task (UI, or the
+  `platform.vcluster.com/stack-retry` annotation) only if it stays Failed after its pods are
+  Running.
 - **NVSentinel's first few minutes are noisy and fine.** platform-connectors,
   fault-quarantine and node-drainer crash-loop with `ENOTFOUND mongodb-rs0...` until MongoDB
   is Ready: a headless Service has no DNS record before its pod is ready. They recover on
@@ -157,6 +159,62 @@ ECC, Xid; `--mode healthy` clears it), and pins for `util`, `power`, `clocks`, `
   jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'` should list
   `GpuThermalMarginWatch=False` and `GpuNvlinkWatch=False`. A True NVLink watch at idle means
   the BER suppression didn't apply, and that node will never uncordon after a fault.
+
+## Variant: replace a failed GPU from spare capacity
+
+**Status: verified 2026-10-18**, end to end with no manual step.
+
+Two tenant clusters share the mock "4-GPU server", with one slot held in reserve:
+
+| Slot | Holder |
+| --- | --- |
+| 1, 2 | `tenant-a-gpu`: NVSentinel template, `gpuVMCount: 2`, `spareGPUs: 1` (plus its CPU service VM on a large host) |
+| 3 | `tenant-b-gpu`: plain mock template, `gpuVMCount: 1` |
+| 4 | reserve |
+
+Run `./demo.sh workload` against tenant A (two replicas, one per static GPU, so a drained
+pod has nowhere to go but a spare), then heat one of its GPUs. What happened:
+
+| t | |
+| --- | --- |
+| 0 s | `nvml-mock-ctl temp --gpu 0 142` on a static GPU node |
+| +13 s | NVSentinel cordons and drains it; the pod goes Pending; **Auto Nodes claims the reserve slot** (`gpu-spare` pool) |
+| +111 s | Spare VM joins tenant A |
+| +306 s | Spare advertises its GPU; **the workload runs on it** |
+| +306 s | `nvml-mock-ctl reset --gpu 0` |
+| +328 s | NVSentinel uncordons the healed node |
+| +393 s | **Consolidation moves the workload back** to the healed node |
+| +437 s | **Spare deleted; slot returned to the reserve** |
+
+How it works, in the NVSentinel template (`spareGPUs` > 0 adds both pools):
+
+- `kvm-mock-gpu` **declares** `nvidia.com/gpu: "1"` in its `resources`, so vCluster copies the
+  GPU into the Karpenter instance type and a Pending GPU pod can launch it.
+- **`gpu-spare`** is a dynamic pool, separate from the static GPU pool so a cordoned static
+  node doesn't use up its `limits: {nvidia.com/gpu: N}`. Tainted `nvidia.com/gpu:NoSchedule`
+  so only GPU pods can trigger it; the workload, nvml-mock, the GPU Operator and NVSentinel's
+  GPU-side pods tolerate it. `consolidationPolicy: WhenEmptyOrUnderutilized`,
+  `consolidateAfter: 1m` gives the slot back after recovery.
+- **`scheduler-headroom`** is a dynamic pool on `kvm-small` with `limits: {cpu: "0"}`. It
+  never launches anything. It exists because when the spare takes the mock host's last slot,
+  `kvm-mock-gpu` goes Pending, no dynamic pool has a launchable instance type, and Karpenter
+  refuses to build its scheduler ("filtered out all instance types for all node pools"), so
+  consolidation can't even simulate deleting the spare. A pool with an always-launchable type
+  keeps the simulation possible; the zero limit drops that type before any launch. A real
+  fleet with free capacity in some pool doesn't need this.
+- **`gpu-spare` selects the full NodeType name** (`kubevirt-us-va-blacksburg-dc1.kvm-mock-gpu`).
+  The short alias works for launching but breaks consolidation: vCluster's init-node
+  controller copies the selected `vcluster.com/node-type` value into the node's
+  `node.kubernetes.io/instance-type`, Karpenter names the instance type with the full name,
+  and the spare is "Unconsolidatable: Instance Type "kvm-mock-gpu" not found". That is a
+  vCluster bug (`vcluster-pro` `pkg/privatenodes/autonodes/controllers/initnode.go:80-99`;
+  the controller should use the NodeType's name), worked around here.
+
+To watch it: `./demo.sh watch <node>` in one terminal (it shows which GPU node is a spare),
+`./demo.sh heat <node>`, and later `./demo.sh cool <node>`. If the spare never goes away,
+read Karpenter's view in the tenant's control plane pod, not the events (Karpenter
+de-duplicates them):
+`kubectl --context <control plane cluster> -n <tenant namespace> logs <tenant>-0 | grep -iE "disruption|consolidat"`.
 
 ## Run it in your own environment
 
