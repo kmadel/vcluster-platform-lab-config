@@ -257,6 +257,54 @@ With real GPU passthrough, retiring the VM frees the physical GPU for reuse; kee
 GPU out of the pool would be a device-health concern below Auto Nodes. With nvml-mock the
 "failed" GPU was never real, so reuse is harmless.
 
+## Next: a mock GPU node component, so the real NVIDIA Stacks run unchanged
+
+**Status: planned, not built (2026-10-18).** Today the mock templates use their own GPU Operator
+values (`demo-gpu-operator-mock`). The aim is to make any node a "simulated GPU node" and run the
+**same Stacks used with real GPUs** (`demo-gpu`) on top.
+
+**The idea.** A small chart, installed into any tenant cluster that has mock nodes:
+
+1. **nvml-mock**, with its node selector on **`vcluster.com/accelerator=mock-gpu`**. That label comes
+   from the NodeType's `spec.properties`, so every node built from a mock NodeType carries it, in any
+   pool, template or tenant. (What reaches a node: single-valued NodeType properties and pool
+   `nodeLabels`/`taints` do; NodeType `metadata.labels` and annotations do not. vCluster pools have
+   no way to set NodeClaim annotations.)
+2. **A node labeler** (a DaemonSet on the same selector) that sets, on mock nodes only:
+   - `nvidia.com/gpu.deploy.driver=false` and `nvidia.com/gpu.deploy.container-toolkit=false`:
+     nvml-mock is the driver and the runtime. The GPU Operator labels each GPU node
+     `nvidia.com/gpu.deploy.<component>=true` and each of its DaemonSets selects on its own label
+     (verified on `tenant-a-gpu`), so these keep the real driver and toolkit off mock nodes while
+     the rest of a real ClusterPolicy runs unchanged.
+   - `nvsentinel.dgxc.nvidia.com/driver.installed=true`, which NVSentinel's metadata collector
+     needs (what `labeler.assumeDriverInstalled` fakes today).
+
+A Platform-side controller then installs that one chart wherever a tenant cluster gets a mock node:
+watch the Platform's NodeClaims (`spec.typeRef`, `spec.vClusterRef`), and when the NodeType has
+`vcluster.com/accelerator: mock-gpu`, create the per-cluster Argo CD application
+(`argocdapplications.management.loft.sh`), as Stacks do. Check first whether the lab's
+`fleet-bindings` chart can target clusters by label; that could replace the controller.
+
+**To settle in a spike** (fresh tenant cluster, the chart, the unchanged `demo-gpu` Stack on top):
+
+| Open point | Why | Likely answer |
+| --- | --- | --- |
+| Validator CUDA check | A real ClusterPolicy runs a CUDA validation workload; CUDA isn't simulated | `nvidia.com/gpu.deploy.operator-validator=false` on mock nodes, if the device plugin doesn't then wait on validation markers |
+| `demo-gpu`'s `gpu-smoke-test` | CUDA vectorAdd fails on a mock node | Pin it to real nodes, or switch it by `templateRef.name` |
+| NVSentinel NVLink noise | The mock reports NVLink effective-BER at boot; the real (detection-only) stack would show it as failing | Configure the mock not to report it rather than suppress a real check |
+| One nvml-mock release per cluster | One GPU profile per cluster | Fine for demos |
+| Mixing real and mock nodes in one cluster | Per-node labels make it plausible; cluster-wide ClusterPolicy settings may not agree | Test |
+
+**Then: whole servers and trays on Metal3.** nvml-mock runs on any private node with containerd
+2.x, so Metal3 nodes work like the VMs. Profiles model whole machines: `b200` is an 8-GPU
+baseboard, `gb200`/`gb300` are 4-GPU trays, and the chart also simulates NVLink fabric topology
+(`topology.domains`), Fabric Manager and IMEX channels (for NVIDIA's DRA ComputeDomain driver).
+First target: a static Metal3 pool on an xlarge host with the `b200` profile, one "8 x B200 server"
+assigned whole to a tenant. Stretch: a slice of an NVL72 domain across several nodes. Caveats:
+GB300 is Grace (arm64) and the lab hosts are x86, so anything that checks architecture won't
+match; a dynamic Metal3 pool would need its NodeType to declare `nvidia.com/gpu` (unverified
+that the Metal3 provider allows it; static pools don't need it).
+
 ## Run it in your own environment
 
 The lab build uses Metal3 hosts, KubeVirt VMs and a GitOps repo, but the simulated-GPU part
