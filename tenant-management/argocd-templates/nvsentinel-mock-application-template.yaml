@@ -59,7 +59,12 @@ spec:
               nodeSelector:
                 kubernetes.io/os: linux
                 workload.example.com/pool: {{ .Values.gpuNodePool | quote }}
-              tolerations: []
+              # Spare GPU nodes (the template's gpu-spare pool) carry this taint; the
+              # health monitor and metadata collector must run there too.
+              tolerations:
+              - key: nvidia.com/gpu
+                operator: Exists
+                effect: NoSchedule
               # The pipeline (store, quarantine, drainer) lives off the GPU nodes.
               systemNodeSelector:
                 kubernetes.io/os: linux

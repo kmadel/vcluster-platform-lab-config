@@ -277,6 +277,16 @@ spec:
             - name: kvm-mock-gpu
               displayName: KVM VM + 1 simulated GPU (2 CPU, 3 GiB)
               maxCapacity: 4
+              # Declared, not derived from the VM template, so the GPU is part of the
+              # node type's capacity: a dynamic pool can then launch this type for a
+              # pod that requests nvidia.com/gpu (vCluster copies these resources into
+              # the Karpenter instance type). The provider still only sets VM cores
+              # and guest memory from cpu/memory when the template leaves them unset;
+              # the 1 CPU / 3 GiB requests below are what the scheduler reserves.
+              resources:
+                cpu: "2"
+                memory: 3Gi
+                nvidia.com/gpu: "1"
               properties:
                 # The mock host is a provider auto node, like the GPU host.
                 kubevirt.vcluster.com/capacity-type: on-demand

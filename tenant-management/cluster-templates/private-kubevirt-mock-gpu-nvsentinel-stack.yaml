@@ -43,6 +43,19 @@ spec:
         - '4'
       defaultValue: '4'
       section: Control Plane
+    - variable: spareGPUs
+      label: Spare GPU VMs
+      description: Replacement capacity. When NVSentinel drains a GPU node and its pod has nowhere
+        to go, Auto Nodes launches a spare GPU VM from the mock host; when the node recovers,
+        consolidation removes the spare and returns the slot. 0 turns it off.
+      type: number
+      required: true
+      options:
+        - '0'
+        - '1'
+        - '2'
+      defaultValue: '1'
+      section: Control Plane
     - variable: gpuProfile
       label: Simulated GPU Model
       description: What nvidia-smi and the dashboards report. Present it as simulated.
@@ -101,6 +114,33 @@ spec:
                   nodeTypeSelector:
                     - property: vcluster.com/node-type
                       value: kvm-medium
+              {{- if gt (int .Values.spareGPUs) 0 }}
+              # Replacement GPUs: nothing runs here until a GPU pod is Pending (a drained
+              # node's workload with no free GPU left). Separate from the static pool on
+              # purpose: a cordoned static node doesn't count against this pool's limit.
+              # Tainted so only GPU pods (which tolerate nvidia.com/gpu) can trigger it,
+              # never a CPU pod that kvm-mock-gpu's lower cost would otherwise attract.
+              dynamic:
+                - name: gpu-spare
+                  nodeTypeSelector:
+                    - property: vcluster.com/node-type
+                      value: kvm-mock-gpu
+                  nodeLabels:
+                    workload.example.com/pool: gpu-compute
+                    demo.vcluster.com/simulated-gpu: "true"
+                    demo.vcluster.com/spare-gpu: "true"
+                  taints:
+                    - key: nvidia.com/gpu
+                      value: "true"
+                      effect: NoSchedule
+                  limits:
+                    nvidia.com/gpu: {{ .Values.spareGPUs | quote }}
+                  # After recovery the spare's pod fits back on the healed static node, so
+                  # consolidation deletes the spare and the slot returns to the mock host.
+                  disruption:
+                    consolidationPolicy: WhenEmptyOrUnderutilized
+                    consolidateAfter: 1m
+              {{- end }}
           # Same pull-through caches as the real GPU template.
           joinNode:
             containerd:
