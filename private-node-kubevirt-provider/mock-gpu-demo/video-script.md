@@ -220,6 +220,10 @@ shows it fine.
   cluster list before export.
 - The Grafana temperature tops out at **95 °C** even though the fault pins 142 °C: DCGM caps the
   reported value, and NVSentinel acts on the thermal margin. If asked, that's why.
+- **If someone asks "is that GPU passthrough?":** no. The GPU is simulated inside each VM by
+  nvml-mock; the VMs have no host devices, so vfio, IOMMU and the vCluster device operator aren't
+  involved. Passthrough is shown separately on real hardware (the lab's RTX 2000 Ada, or AWS
+  `g4dn.metal`). See `mock-gpu.md`, "What this does not cover: GPU passthrough".
 - **If someone asks "isn't the failed GPU back in the pool?":** with nvml-mock it was never real.
   With real passthrough, keeping a bad GPU out of rotation is a device-health concern below
   Auto Nodes.

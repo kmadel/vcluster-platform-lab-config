@@ -25,6 +25,41 @@ scene-by-scene video script (about 7 minutes, with speed-up markers), and
 [`mock-gpu-demo/demo.sh`](mock-gpu-demo/demo.sh) turns the on-camera steps into one-liners
 (`status`, `smi`, `pick`, `heat`, `watch`, `cool`, `reset`).
 
+## What this does not cover: GPU passthrough
+
+The simulated GPU lives **inside the guest**. Each mock VM is an ordinary KubeVirt VM with no
+`hostDevices` or `gpus`; nvml-mock in the tenant cluster makes the guest report a GPU. Nothing
+on the KubeVirt host is a GPU. So none of the passthrough path is exercised:
+
+- the **vCluster device operator** (`HostDevice`: binding GPUs to vfio-pci, `permittedHostDevices`,
+  IOMMU kernel arguments, hugepages and NUMA, NVLink partitioning);
+- **IOMMU groups**, `/dev/vfio`, and QEMU's VFIO DMA mapping;
+- the **GPU reset** vfio performs when a VM is torn down;
+- a KubeVirt GPU NodeType's capacity tracking the host's real GPUs. `kvm-mock-gpu` **declares**
+  `nvidia.com/gpu: "1"` in its resources so Auto Nodes can schedule on it; a passthrough type
+  has its GPU in the VM template instead (`kvm-gpu-rtx-2000-ada`).
+
+**Why nvml-mock's PCIe mocking can't fake it.** nvml-mock's
+[PCIe topology mocking](https://nvidia.github.io/k8s-test-infra/helm-chart/#pcie-topology-mocking)
+writes a fake sysfs tree (`/var/lib/nvml-mock/sys/...`) and serves it to the consumers it targets,
+through the `libmockfs.so` LD_PRELOAD shim or bind mounts over `/sys/devices` and
+`/sys/bus/pci/devices` in containers that get its CDI spec. It exists so the DRA driver, device
+plugins (NUMA hints) and GPU feature discovery see believable PCIe roots. Passthrough needs things
+only the kernel provides: the device operator writes the real
+`/sys/bus/pci/drivers/vfio-pci/bind`, which needs a kernel PCI device; the bind creates the
+IOMMU group and `/dev/vfio/<group>` that KubeVirt's device plugin checks and QEMU opens; QEMU
+then maps guest memory through the IOMMU with VFIO ioctls. A fake directory provides none of
+that, so at best a fake device plugin gets a VM scheduled and QEMU fails to start it.
+
+**What does exercise passthrough:**
+
+| Option | What it proves | Cost |
+| --- | --- | --- |
+| A real GPU: the lab's RTX 2000 Ada (`kvm-gpu-rtx-2000-ada`, see `gpu-passthrough.md`) or an AWS `g4dn.metal` (8 x T4) | The whole path, real vfio, IOMMU and reset | One card in the lab; about $8/hour on AWS |
+| Emulated PCI devices behind a vIOMMU: give the KubeVirt host's libvirt domain QEMU test devices (`edu`, `1234:11e8`) plus an `intel-iommu` device, bind them to vfio-pci and permit them in KubeVirt, then run nvml-mock in the guest | The passthrough mechanics (vfio bind, IOMMU groups, permittedHostDevices, scheduling by device, the slot count dropping as VMs land) with no GPU; the guest sees a QEMU device and nvml-mock supplies the NVIDIA side | Untested spike; vfio may not like the `edu` device's reset; the device operator may only select NVIDIA IDs; `lspci` on the host shows a QEMU device |
+
+Pair either with nvml-mock in the guest for the NVIDIA side when the device itself isn't a real GPU.
+
 ## Pieces
 
 | File | What |
