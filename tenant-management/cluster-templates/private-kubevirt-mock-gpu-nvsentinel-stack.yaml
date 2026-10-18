@@ -122,9 +122,15 @@ spec:
               # never a CPU pod that kvm-mock-gpu's lower cost would otherwise attract.
               dynamic:
                 - name: gpu-spare
+                  # The FULL NodeType name, not the short alias kvm-mock-gpu that static
+                  # pools use. vcluster.com/node-type carries both values; the selected one
+                  # becomes the node's label, and vCluster's init-node controller copies it
+                  # into node.kubernetes.io/instance-type. Karpenter names the instance type
+                  # with the full name, so the short alias leaves the spare
+                  # "Unconsolidatable: Instance Type not found" and it is never removed.
                   nodeTypeSelector:
                     - property: vcluster.com/node-type
-                      value: kvm-mock-gpu
+                      value: kubevirt-us-va-blacksburg-dc1.kvm-mock-gpu
                   nodeLabels:
                     workload.example.com/pool: gpu-compute
                     demo.vcluster.com/simulated-gpu: "true"
@@ -140,6 +146,20 @@ spec:
                   disruption:
                     consolidationPolicy: WhenEmptyOrUnderutilized
                     consolidateAfter: 1m
+                # Never launches anything (limits cpu 0); it exists so Karpenter can always
+                # build its scheduler. When the spare takes the mock host's last slot,
+                # kvm-mock-gpu goes Pending and gpu-spare has no launchable instance type;
+                # with no launchable type in any dynamic pool, Karpenter refuses to build
+                # the scheduler ("filtered out all instance types for all node pools") and
+                # consolidation can't even simulate deleting the spare. A pool whose type is
+                # always launchable keeps the simulation possible; the zero limit makes the
+                # scheduler drop its type before any launch.
+                - name: scheduler-headroom
+                  nodeTypeSelector:
+                    - property: vcluster.com/node-type
+                      value: kubevirt-us-va-blacksburg-dc1.kvm-small
+                  limits:
+                    cpu: "0"
               {{- end }}
           # Same pull-through caches as the real GPU template.
           joinNode:
