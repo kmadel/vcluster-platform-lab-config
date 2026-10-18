@@ -1,0 +1,5 @@
+apiVersion: v2
+name: gpu-workload
+description: A placeholder GPU job, one pod per GPU, for the simulated-GPU demos. Its Pending pods are what make a dynamic GPU pool launch GPU nodes.
+type: application
+version: 0.1.0

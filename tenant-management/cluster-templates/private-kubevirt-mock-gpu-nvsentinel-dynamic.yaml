@@ -1,0 +1,206 @@
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterTemplate
+metadata:
+  name: private-nodes-kubevirt-mock-gpu-nvsentinel-dynamic
+  annotations:
+    vcluster.com/template-icon: gpu.svg
+  labels:
+    demo.vcluster.com/shared: "true"
+spec:
+  displayName: Private Nodes - KubeVirt VMs with Simulated GPUs, NVSentinel and Dynamic GPU Nodes
+  description: |
+    Every GPU node comes from one dynamic Auto Nodes pool: the Stack's GPU workload asks for
+    gpuVMCount GPUs and Auto Nodes launches a 1-GPU VM per pod on the mock "4-GPU server".
+    When NVSentinel quarantines a failed GPU node, its pod goes Pending, Auto Nodes launches a
+    replacement (up to spareGPUs extra), and the drained node, empty and dynamic, is retired
+    by consolidation, returning its slot. A CPU service VM runs the controllers and NVSentinel's
+    pipeline. Shares the mock host with the other mock templates.
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: kubernetesVersion
+      label: Kubernetes Version
+      description: |
+        Control plane Kubernetes version. Updating this value triggers a rolling upgrade of the vCluster control plane. The VM node kubelets are re-provisioned separately via the NodeClaim lifecycle.
+      options:
+        - v1.34.12
+        - v1.35.9
+        - v1.36.5
+      defaultValue: v1.36.5
+      section: Control Plane
+    - variable: gpuVMCount
+      label: GPU VMs
+      description: GPUs the workload asks for, one VM each. The mock host fits four.
+      type: number
+      required: true
+      options:
+        - '1'
+        - '2'
+        - '3'
+        - '4'
+      defaultValue: '4'
+      section: Control Plane
+    - variable: spareGPUs
+      label: Spare GPU VMs
+      description: Replacement capacity. When NVSentinel drains a GPU node and its pod has nowhere
+        to go, Auto Nodes launches a spare GPU VM from the mock host; when the node recovers,
+        consolidation removes the spare and returns the slot. 0 turns it off.
+      type: number
+      required: true
+      options:
+        - '0'
+        - '1'
+        - '2'
+      defaultValue: '1'
+      section: Control Plane
+    - variable: gpuProfile
+      label: Simulated GPU Model
+      description: What nvidia-smi and the dashboards report. Present it as simulated.
+      type: string
+      required: true
+      options:
+        - b200
+        - h100
+        - gb200
+        - gb300
+        - a100
+        - l40s
+        - t4
+      defaultValue: b200
+      section: Simulated GPUs
+    - variable: argoProject
+      label: Argo CD Project
+      type: string
+      defaultValue: default
+      section: Argo CD
+  template:
+    pro:
+      enabled: true
+    helmRelease:
+      chart:
+        name: vcluster
+        repo: https://charts.loft.sh
+        version: "0.37.3"
+      values: |-
+        privateNodes:
+          enabled: true
+          vpn:
+            enabled: true
+          autoNodes:
+            - provider: kubevirt-us-va-blacksburg-dc1
+              static:
+                - name: cpu
+                  quantity: 1
+                  nodeLabels:
+                    workload.example.com/pool: cpu-services
+                  nodeTypeSelector:
+                    - property: vcluster.com/node-type
+                      value: kvm-medium
+              dynamic:
+                # Every GPU node. Launched for Pending GPU pods (the Stack's workload first),
+                # capped at the workload's GPUs plus the spares. Tainted so only GPU pods
+                # trigger it. Selects the FULL NodeType name: the short alias makes vCluster's
+                # init-node controller set an instance-type label Karpenter can't resolve,
+                # and these nodes would never be consolidated (see mock-gpu.md).
+                - name: gpu
+                  nodeTypeSelector:
+                    - property: vcluster.com/node-type
+                      value: kubevirt-us-va-blacksburg-dc1.kvm-mock-gpu
+                  nodeLabels:
+                    workload.example.com/pool: gpu-compute
+                    demo.vcluster.com/simulated-gpu: "true"
+                  taints:
+                    - key: nvidia.com/gpu
+                      value: "true"
+                      effect: NoSchedule
+                  limits:
+                    nvidia.com/gpu: '{{ add (int .Values.gpuVMCount) (int .Values.spareGPUs) }}'
+                  # A drained, quarantined node is empty and dynamic, so it is retired a
+                  # minute after its drain; a node left idle after recovery goes the same way.
+                  disruption:
+                    consolidationPolicy: WhenEmptyOrUnderutilized
+                    consolidateAfter: 1m
+                # Never launches anything (limits cpu 0); it exists so Karpenter can always
+                # build its scheduler. When the spare takes the mock host's last slot,
+                # kvm-mock-gpu goes Pending and the gpu pool has no launchable instance type;
+                # with no launchable type in any dynamic pool, Karpenter refuses to build
+                # the scheduler ("filtered out all instance types for all node pools") and
+                # consolidation can't even simulate deleting the spare. A pool whose type is
+                # always launchable keeps the simulation possible; the zero limit makes the
+                # scheduler drop its type before any launch.
+                - name: scheduler-headroom
+                  nodeTypeSelector:
+                    - property: vcluster.com/node-type
+                      value: kubevirt-us-va-blacksburg-dc1.kvm-small
+                  limits:
+                    cpu: "0"
+          # Same pull-through caches as the real GPU template.
+          joinNode:
+            containerd:
+              enabled: true
+              registry:
+                configPath: /etc/containerd/certs.d
+                mirrors:
+                  registry.k8s.io:
+                    hosts:
+                      - server: http://192.168.50.61:5000
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  quay.io:
+                    hosts:
+                      - server: http://192.168.50.61:5001
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  nvcr.io:
+                    hosts:
+                      - server: http://192.168.50.61:5002
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  ghcr.io:
+                    hosts:
+                      - server: http://192.168.50.61:5003
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+                  docker.io:
+                    hosts:
+                      - server: http://192.168.50.61:5004
+                        capabilities: ["pull", "resolve"]
+                        skipVerify: true
+        # Off the provider's pod and service CIDRs (10.64.0.0/16, 10.128.0.0/16):
+        # the VMs use bridge binding, so node IPs are provider pod IPs. See the
+        # real GPU template.
+        networking:
+          podCIDR: 10.244.0.0/16
+          serviceCIDR: 10.96.0.0/16
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
+          distro:
+            k8s:
+              version: "{{ .Values.kubernetesVersion }}"
+          statefulSet:
+            scheduling:
+              nodeSelector:
+                kubernetes.io/hostname: vmetal-w02
+        integrations:
+          argoCD:
+            enabled: true
+            connector: '{{ if contains "--" .Values.loft.project }}demo-lab-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}demo-lab{{ end }}'
+        deploy:
+          cni:
+            flannel:
+              enabled: true
+          stacks:
+            - name: gpu
+              displayName: Demo - Simulated GPU Stack with NVSentinel (dynamic GPUs)
+              templateRef:
+                name: demo-mock-gpu-nvsentinel-dynamic
+              parameters:
+                gpuProfile: {{ .Values.gpuProfile | quote }}
+                gpusPerNode: "1"
+                minGPUs: {{ .Values.gpuVMCount | quote }}
+                gpuNodePool: gpu-compute
+                cpuNodePool: cpu-services
+                argoProject: {{ .Values.argoProject | quote }}

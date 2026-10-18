@@ -1,0 +1,42 @@
+# A placeholder GPU job (charts/gpu-workload in this repo): one sleeping pod per GPU, each
+# requesting one nvidia.com/gpu. In the dynamic-GPU-pool template its Pending pods are what
+# make Auto Nodes launch the tenant's GPU VMs, so it runs as the Stack's first task.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: demo-gpu-workload
+spec:
+  displayName: Demo - GPU workload (one pod per GPU)
+  owner:
+    team: loft-admins
+  parameters:
+    - variable: project
+      label: Argo CD Project
+      type: string
+      required: true
+      defaultValue: default
+    - variable: replicas
+      label: GPU Pods
+      description: One nvidia.com/gpu each.
+      type: number
+      required: true
+      defaultValue: '2'
+  template:
+    spec:
+      destination:
+        namespace: default
+      project: '{{ .Values.project }}'
+      source:
+        repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+        targetRevision: main
+        path: charts/gpu-workload
+        helm:
+          releaseName: gpu-workload
+          values: |
+            replicas: {{ .Values.replicas | default "2" }}
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - ServerSideApply=true

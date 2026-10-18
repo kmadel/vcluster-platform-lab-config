@@ -1,0 +1,33 @@
+# Sleeps on a GPU. With a dynamic GPU pool, these pods are what bring the GPU nodes up:
+# Pending pods requesting nvidia.com/gpu make Auto Nodes launch GPU VMs.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-workload
+  labels:
+    app: gpu-workload
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: gpu-workload
+  template:
+    metadata:
+      labels:
+        app: gpu-workload
+    spec:
+      # sleep ignores SIGTERM; keep drains and evictions quick.
+      terminationGracePeriodSeconds: 5
+      {{- if .Values.tolerateGPUTaint }}
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      {{- end }}
+      containers:
+        - name: work
+          image: {{ .Values.image }}
+          command: [sleep, infinity]
+          resources:
+            limits:
+              nvidia.com/gpu: 1

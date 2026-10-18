@@ -22,6 +22,9 @@ spec:
     - kind: VirtualClusterTemplate
       group: storage.loft.sh
       name: private-nodes-kubevirt-mock-gpu-nvsentinel-stack
+    - kind: VirtualClusterTemplate
+      group: storage.loft.sh
+      name: private-nodes-kubevirt-mock-gpu-nvsentinel-dynamic
   allowedNodeTypes: null
   allowedNodeProfiles: null
   requireTemplate: {}
