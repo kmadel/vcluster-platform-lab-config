@@ -47,7 +47,10 @@ Run through this once, right before the first take.
    5. Grafana **Tenant Cluster GPUs**: `https://vcp.lab.kurtmadel.com/grafana/d/vcluster-tenant-gpus?var-project=vm-tenants&from=now-15m&to=now&refresh=10s`
 5. **Two terminals**, large font (18pt+), dark on light, in this folder:
    - left: commands
-   - right: `./demo.sh watch <node>` during scene 6 (after `./demo.sh pick`)
+   - right: `./demo.sh watch <node>` during scene 6 (after `./demo.sh pick`). Its top line,
+     **`FAULT +mm:ss`**, is the on-screen clock: `heat` starts it, so when you speed the footage
+     up the clock races and the real elapsed time stays readable. `./demo.sh timer` shows the
+     same clock alone, for a small corner terminal.
 6. **Turn off notifications.** Hide the bookmarks bar and any customer tabs.
 
 ---
@@ -212,7 +215,8 @@ shows it fine.
   Keep at real speed: the fault detection (about 14 s), and the moments the replacement node
   appears, the failed node disappears, and the pod turns Running. How fast it reacts is the point.
 - **Captions** worth adding: "Simulated GPUs (NVIDIA nvml-mock)" on every scene with GPU names
-  on screen, "sped up" wherever you speed up, and a timer during scene 6.
+  on screen, and the speed ("10x") wherever you speed up. No timer overlay needed: the
+  `FAULT +mm:ss` clock in the watch terminal is recorded with the scene.
 - **Reference timings** (2026-10-18 run): cordon and drain at 14 s; replacement claimed at 25 s;
   replacement joined at 2:02; failed node marked for retirement at 2:46; its slot released at
   3:29 and the node gone at 3:40; workload Running on the replacement at 5:18.

@@ -11,10 +11,16 @@
 #   ./demo.sh watch NODE       follow the cordon, condition and pod moves (Ctrl-C to stop)
 #   ./demo.sh cool NODE        clear the fault; NVSentinel uncordons on its own
 #   ./demo.sh reset            cool every GPU and delete the workload (pre-take cleanup)
+#   ./demo.sh timer            large elapsed-time clock since the last 'heat' (for recording)
+#
+# 'heat' starts an on-screen clock: 'watch' and 'timer' show FAULT +mm:ss, so a sped-up
+# recording still shows how long each step really took.
 set -euo pipefail
 
 CTX="${CTX:-vcluster-platform_tenant-a-gpu_vm-tenants_vcluster-platform_spark-cluster}"
 HOT_C="${HOT_C:-142}"
+T0_FILE="${TMPDIR:-/tmp}/mock-gpu-demo.fault-start"
+elapsed() { [[ -f "$T0_FILE" ]] || { echo "--:--"; return; }; local d=$(( $(date +%s) - $(cat "$T0_FILE") )); printf '%02d:%02d' $((d/60)) $((d%60)); }
 K=(kubectl --context "$CTX")
 
 gpu_nodes() { "${K[@]}" get nodes -l workload.example.com/pool=gpu-compute -o name | sed 's|node/||'; }
@@ -75,12 +81,13 @@ YAML
   heat)
     need_node "${2:-}" heat
     "${K[@]}" -n mokka exec "$(mock_pod "$2")" -c node-agent -- nvml-mock-ctl temp --gpu 0 "$HOT_C"
+    date +%s > "$T0_FILE"
     ;;
   watch)
     need_node "${2:-}" watch
     while true; do
       clear
-      date +%H:%M:%S
+      printf '\033[1;7m  FAULT +%s  \033[0m   %s\n' "$(elapsed)" "$(date +%H:%M:%S)"
       "${K[@]}" get node "$2" -o jsonpath='Node {.metadata.name}  cordoned={.spec.unschedulable}{"\n"}{range .status.conditions[?(@.type=="GpuThermalMarginWatch")]}GpuThermalMarginWatch={.status}  {.message}{end}{"\n"}' | cut -c1-160
       echo
       "${K[@]}" get pods -n default -l app=gpu-workload -o custom-columns='POD:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName'
@@ -92,6 +99,10 @@ YAML
   cool)
     need_node "${2:-}" cool
     "${K[@]}" -n mokka exec "$(mock_pod "$2")" -c node-agent -- nvml-mock-ctl reset --gpu 0
+    ;;
+  timer)
+    # Big, standalone clock for a corner terminal; Ctrl-C to stop.
+    while true; do printf '\r\033[1;7m  FAULT +%s  \033[0m ' "$(elapsed)"; sleep 1; done
     ;;
   reset)
     for n in $(gpu_nodes); do
