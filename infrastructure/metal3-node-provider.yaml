@@ -173,13 +173,16 @@ spec:
           nvidia.com/gpu.deploy.driver: "false"
           nvidia.com/gpu.deploy.container-toolkit: "false"
 
-      # The same simulated server in rack A (rack-a-u20-xlarge, taken from the KubeVirt
-      # provider cluster on 2026-10-20). No rack-A NodeType selects gpu-compute broadly.
-      - name: rack-a-b200-xlarge
+      # A simulated GB300 NVL72 compute tray in rack A (rack-a-u20-xlarge, taken from the
+      # KubeVirt provider cluster on 2026-10-20): NetBox device type gb300-tray, 4 GPUs
+      # from nvml-mock. MachineConfigTemplate nvidia-gpu-server picks the GB300 profile from
+      # vcluster.com/accelerator. No kubernetes.io/arch property: real GB300 trays are
+      # arm64 (Grace), this host is x86, and an arm64 label would break every pod.
+      - name: rack-a-gb300-tray
         resources:
           cpu: "8"
           memory: 16Gi
-          nvidia.com/gpu: "8"
+          nvidia.com/gpu: "4"
         bareMetalHosts:
           selector:
             matchLabels:
@@ -189,20 +192,16 @@ spec:
               netbox.vcluster.com/location: row-1
               netbox.vcluster.com/rack: rack-a
               netbox.vcluster.com/role: gpu-compute
-              netbox.vcluster.com/device-type: hgx-b200
+              netbox.vcluster.com/device-type: gb300-tray
         properties:
-          vcluster.com/accelerator: b200
+          vcluster.com/accelerator: gb300
           vcluster.com/az: us-va-blacksburg-dc1
           vcluster.com/cpu: "8"
           vcluster.com/memory: 16Gi
-          vcluster.com/profile: xlarge-gpu
+          vcluster.com/profile: gpu-tray
           vcluster.com/rack: rack-a
           vcluster.com/row: row-1
-          # The "driver": nvml-mock from cloud-init, 8 GPUs (built into the template,
-          # which is named for the server type so the node label reads normally).
-          vcluster.com/user-data-template-config: hgx-b200
-          # Single-valued properties become node labels: the driver and container
-          # toolkit are preinstalled, so the GPU Operator must not deploy them here.
+          vcluster.com/user-data-template-config: nvidia-gpu-server
           nvidia.com/gpu.deploy.driver: "false"
           nvidia.com/gpu.deploy.container-toolkit: "false"
 
