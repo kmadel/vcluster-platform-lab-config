@@ -135,6 +135,44 @@ spec:
           vcluster.com/rack: rack-c
           vcluster.com/row: row-1
 
+      # A simulated "HGX B200" server: an ordinary vmetal VM (rack-b-u18-xlarge) whose
+      # NetBox device type is hgx-b200, and whose 8 GPUs come from NVIDIA nvml-mock,
+      # installed on the host by cloud-init before the join (MachineConfigTemplate
+      # nvml-mock-b200, infrastructure/). Tenant clusters select it like real GPU
+      # capacity (vcluster.com/accelerator: b200) and see a node with a driver already
+      # installed. Rack B, not C: rack-c-xlarge-gpu-pool selects every gpu-compute host
+      # in rack C. Demo only, nothing CUDA runs; present the GPUs as simulated.
+      - name: rack-b-b200-xlarge
+        resources:
+          cpu: "8"
+          memory: 16Gi
+          nvidia.com/gpu: "8"
+        bareMetalHosts:
+          selector:
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-b
+              netbox.vcluster.com/role: gpu-compute
+              netbox.vcluster.com/device-type: hgx-b200
+        properties:
+          vcluster.com/accelerator: b200
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: "8"
+          vcluster.com/memory: 16Gi
+          vcluster.com/profile: xlarge-gpu
+          vcluster.com/rack: rack-b
+          vcluster.com/row: row-1
+          # The "driver": nvml-mock from cloud-init, 8 GPUs.
+          vcluster.com/user-data-template-config: nvml-mock-b200
+          nvml-mock.vcluster.com/gpu-count: "8"
+          # Single-valued properties become node labels: the driver and container
+          # toolkit are preinstalled, so the GPU Operator must not deploy them here.
+          nvidia.com/gpu.deploy.driver: "false"
+          nvidia.com/gpu.deploy.container-toolkit: "false"
+
       # ---- rack-a -----------------------------------------------------------
       - name: rack-a-small-pool
         metadata:
