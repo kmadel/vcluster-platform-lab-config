@@ -1,0 +1,43 @@
+# The NVIDIA device plugin on the simulated GB300 tray (gpu-tray-host) in the
+# kubevirt-provider-cluster tenant cluster. It reads the tray's 4 GPUs from nvml-mock
+# (installed by the Metal3 NodeType's cloud-init) and advertises them as nvidia.com/gpu,
+# which kvm-gb300-1gpu VMs request one each of. Just the plugin: no GPU Operator or NFD,
+# which would spread to every node, including the real RTX passthrough host, whose GPU
+# KubeVirt advertises as nvidia.com/RTX_2000_Ada through the vCluster device operator.
+#
+# The chart's default affinity accepts nvidia.com/gpu.present=true, which only the tray's
+# pool sets; the nodeSelector pins it there regardless.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubevirt-provider-cluster-mock-gpu-device-plugin
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://nvidia.github.io/k8s-device-plugin
+    chart: nvidia-device-plugin
+    targetRevision: 0.19.3
+    helm:
+      releaseName: nvidia-device-plugin
+      values: |
+        nodeSelector:
+          demo.vcluster.com/mock-gpu-tray: "true"
+        runtimeClassName: nvidia
+        nvidiaDriverRoot: /run/nvidia/driver
+        failOnInitError: true
+  destination:
+    server: https://vcp.lab.kurtmadel.com/kubernetes/project/platform/virtualcluster/kubevirt-provider-cluster
+    namespace: nvidia-device-plugin
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: -1
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

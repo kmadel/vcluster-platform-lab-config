@@ -316,3 +316,43 @@ spec:
                           requests:
                             cpu: "1"
                             memory: 3Gi
+            # One GPU of the simulated GB300 tray (gpu-tray-host): the VM requests one of the
+            # tray's 4 nvidia.com/gpu, so the provider cluster's scheduler stops at four VMs,
+            # like a passthrough host. Nothing is passed through: the guest's GB300 comes from
+            # nvml-mock installed by cloud-init (nvidia-gpu-server, accelerator gb300, 1 GPU).
+            # maxCapacity is deliberately above 4, to see the scheduler do the limiting.
+            - name: kvm-gb300-1gpu
+              displayName: KVM VM + 1 GPU of a GB300 tray (simulated, 2 CPU, 3 GiB)
+              maxCapacity: 8
+              resources:
+                cpu: "2"
+                memory: 3Gi
+                nvidia.com/gpu: "1"
+              properties:
+                kubevirt.vcluster.com/capacity-type: on-demand
+                kubevirt.vcluster.com/root-disk-size: 30Gi
+                vcluster.com/accelerator: gb300
+                vcluster.com/user-data-template-config: nvidia-gpu-server
+                nvml-mock.vcluster.com/gpu-count: "1"
+                nvidia.com/gpu.deploy.driver: "false"
+                nvidia.com/gpu.deploy.container-toolkit: "false"
+              mergeVirtualMachineTemplate:
+                spec:
+                  template:
+                    spec:
+                      affinity:
+                        nodeAffinity:
+                          requiredDuringSchedulingIgnoredDuringExecution:
+                            nodeSelectorTerms:
+                              - matchExpressions:
+                                  - key: demo.vcluster.com/mock-gpu-tray
+                                    operator: In
+                                    values: ["true"]
+                      domain:
+                        resources:
+                          requests:
+                            cpu: "1"
+                            memory: 3Gi
+                            nvidia.com/gpu: "1"
+                          limits:
+                            nvidia.com/gpu: "1"

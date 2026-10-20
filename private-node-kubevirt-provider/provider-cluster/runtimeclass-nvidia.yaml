@@ -1,0 +1,12 @@
+# The containerd "nvidia" handler that nvml-mock's node agent registers on the simulated
+# GPU tray (gpu-tray-host). The NVIDIA device plugin runs under it to load the mock NVML;
+# the GPU Operator would normally create this. Only that node has the handler, and only
+# the device plugin, pinned to that node, uses it.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: nvidia
+handler: nvidia
+scheduling:
+  nodeSelector:
+    demo.vcluster.com/mock-gpu-tray: "true"
