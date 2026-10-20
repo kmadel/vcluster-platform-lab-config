@@ -73,6 +73,14 @@ spec:
         permissions: "0644"
         encoding: gzip+base64
         content: H4sIAAAAAAACA+1YXXPaOBR951fcaR/6seBg2cGUt02aZpgmaaftZh9B2MLWrm15JDkJu9P/vleyISkfzkAD2870DXSlq3PvOeca8xwuh+dQSDHlKQNNJykbwPmJ1+3C1fVFQFrPW8/hS8JgIqiMXqhqO5Waay5yiJnImJazNiQsjYCaCEylyIBrtUirBOiEYaLFgqYzBZLRyFzowCemRHrDMIGGVNAINM8Y3HAKlx9O34/wztHHTx/eDS/OPo9OP1y9G55jMiGBKqCg+CTleQxiam6BUORTHiNGnbSB5ianpmGCybXAUxG74SEbRWxKy1QrJ+Oxo8qiEFKzaFQDVE6rdcOkwhIH4Lbw2NX18O3w97r+UjEJcckjBglCyEXdMV1VY9qV04wpxIJl2HZU9cdF2REFk1Qj+BoCIIKO6RsirLDjxpdUKabVETZKs47ZkdGcxkwedf1ud1Tty2jhzGiWvmrDbcLDBP5m2NUKymQGH0+Hi3qhe+e5p8Ttvj2zPUm5Qn7c2PGO40kbSOwE3XhiQ17suN6beGLqEIoBlaxGz3ic6ESZRlMgQR/O+UmlizkArvADcqgTfs9+xMIUk6g26sBkwcbOIGOZkLNRNoEJS8WtOUlzYHc0xIZgV3iBJ/Ei0vd7ATnqwyU/cawYz/KY54bmMscSjJLghHS7SM3LL6b/cPzKgT+5TgwvRYnaUIb8BwyZcmaYqa7MEMFyoyJmMN/NBqCQPQyHCdcs1KVk7WpJpaaXc9HXeGw9EmuYF2q1Py3T9H4njO1RNUbRW06VvfmWR4iz6m5+k6Vz/QHLywxoahwyA1XQXBkTWWuE2CfJUAEhr0oBfSsAJZUwiWl0gnEtS6WRL7OGdxcpDVnGsF9jWzTP4XVFAJQ5gn3dxl5po9ai1AZLBXaANAedqmZLs1W7VUF1zjCKe9zYlo8UKiQ3N5xIbWRiMvF/GLhWWAaq6UqnylUfEcjl+F97ZADdtj0wgP7XMXYXxjWkEc9xR24byKvW4XGkfIzWgE4a8mJsNY1zoDK9oYBZpWCaWium9Kvryws89znBL9FrmHIcW2ouX8kKZtXL4PzjHzC/9IVyFmPw09k1qHI65XdIoTE53FDJaW7rtcVUnFZ8VGzYFVXPJy5B3OYDTIep3Hk1v2GijEU48NidNmIUedtsIJVABcoYx0BFWa0RB05EPeIs7cxKaz4FFU68jLZtzRFToeQTNAESH4lQHZmhl0VOa3XwDVoAHVvYAJ7V8+EZrsE3+jSx0eeL4elZFZvrxbXf6k0jHiGjdmVB3wACu7Cw/wC84+O+Xy1a30uB+5SQJl3froeimI0qMnGR2DX0moiYXNz5V8Hixf0LuQ/sd1PRisLcrysxtyFGGmJeQ8xviB03xHpLsRUj3JfWRMwqOUt03C9u6r5NYe0yWkfEOjKWCdmMcmRM8ONAXVY+2rJJ/A/Qb3ZA0Fpbx14dIKb0lxl+WDN8w89P440l5A+tYn47PuYT8phP3iz7xF/2SeC6vf7hnxSkwQCkQeSkQcjk11T/H6Y6aZAqWfd7hqyo1F1WqbeFSr3eGpV6P4RK96VEsju93vcokWxCSbYUYc3ZflDu4JcDNHThl/lfAWsN460zjLdiGNJaW8ADw7g+8eour5R07K9xTO9pHOM3uMLfryu83Uns/RSu+C6U3iaU3pYoa/XsB+UO3j0A7Qvv+k3e9dd511/xrvfoq0uTdwOyxrv9J/Xuvvzp705U/3D+JLv787tQ+ptQ+lv6MyB7RLmDPw9A+8KfQeyQoL/Bn8E6fwYr/vQf9Wf19/mGdyay7ueo23vyfxf6+zVrsDtrbu8JX9u3M6+3u3mfFPV2D1uy+8P2SVEfbAQ9KepgE+pg2zdjckiJ7DBJD+7J1n9jdTd/yR4AAA==
+    {{- if eq (index .Values.Properties "nvml-mock.vcluster.com/default-runtime" | default "") "runc" }}
+      - path: /etc/containerd/conf.d/90-nvml-mock-default-runc.toml
+        permissions: "0644"
+        content: |
+          version = 3
+          [plugins."io.containerd.cri.v1.runtime".containerd]
+            default_runtime_name = "runc"
+    {{- end }}
       - path: /usr/local/sbin/nvml-mock-install.sh
         permissions: "0755"
         content: |

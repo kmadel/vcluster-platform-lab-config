@@ -98,6 +98,10 @@ spec:
                   quantity: 1
                   properties:
                     vcluster.com/os-image: ubuntu-noble-bootstrap
+                    # nvml-mock makes "nvidia" containerd's default runtime, and KubeVirt VMs
+                    # then fail to start (QEMU can't open /dev/kvm). Keeps runc the default;
+                    # the device plugin asks for the nvidia runtime class itself.
+                    nvml-mock.vcluster.com/default-runtime: runc
                   nodeLabels:
                     kubevirt.io/schedulable: "true"
                     machine-type.node.kubevirt.io/q35: "true"
