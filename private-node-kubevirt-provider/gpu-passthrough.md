@@ -358,6 +358,104 @@ provider node still brings back its VMs on blank disks, which is worth raising
 as a KubeVirt-provider issue: the DataVolume should not report `Succeeded`
 over an empty volume.
 
+## At scale
+
+`hostdevice-rtx-2000-ada.yaml` looks like one object per card, but the device
+operator's unit of scale is the GPU model (SKU), not the GPU or the node. A
+fleet of thousands of GPUs across four SKUs needs four HostDevices, written
+once.
+
+### One HostDevice per SKU
+
+Two rules set the shape:
+
+- **One HostDevice, one `resourceName`.** Every GPU a HostDevice selects is
+  advertised under that name. Per-model names (`nvidia.com/H100_SXM`,
+  `nvidia.com/B200`) take one HostDevice each.
+- **One HostDevice per node.** If two HostDevices select the same node, the
+  lexicographically smaller name wins and the other reports `Conflict`.
+
+So each HostDevice selects a pool of same-SKU nodes by label:
+
+```yaml
+apiVersion: devices.vcluster.com/v1alpha1
+kind: HostDevice
+metadata:
+  name: h100-sxm
+spec:
+  nodeSelector:
+    node.vcluster.com/gpu-sku: h100-sxm
+  iommu:
+    enabled: true
+  deviceSelector:
+    vendor: "10de"
+  kubevirt:
+    resourceName: nvidia.com/H100_SXM
+```
+
+The label comes from whatever brings the machine into the provider cluster:
+the node pool or NodeType, or the machine inventory (Metal3 BMH labels, NetBox).
+A new server joins already labeled, and the operator prepares it without
+anyone touching a HostDevice. The lab does the same thing at a size of one:
+the static `gpu-host` pool labels its node `demo.vcluster.com/gpu-host=true`.
+
+### `deviceIDs` is optional
+
+With `deviceIDs` empty, the operator builds KubeVirt's `pciHostDevices` from the
+GPUs each node's agent discovered. Once the node selector pins a SKU, `deviceIDs`
+is only an assertion: bind this card and nothing else, even if a different
+one turns up in the pool. The IDs are a short public list per SKU (`28b0` is
+the RTX 2000 Ada), not something looked up per node.
+
+The lab keeps `deviceIDs: ["28b0"]` because its node label is set by hand on a
+single node, so the ID is the only thing tying the resource name to the card.
+
+### What was manual only because of the lab
+
+None of these carry over to bare-metal GPU servers:
+
+- **The libvirt domain**, with its vIOMMU, dedicated root port, and audio
+  function left off. On bare metal the GPU is simply in the host.
+- **Leaving `spec.iommu` unset.** That works around the AMD host with an
+  emulated Intel IOMMU. On real hardware, set `iommu.enabled` and the agent
+  configures the kernel flags and reboots, one node at a time across the fleet.
+- **The node label.** Hand-applied here, from inventory at scale.
+
+### Choosing the consumer path
+
+A HostDevice sets one of two mutually exclusive blocks. Both prepare the node
+the same way (IOMMU, hugepages, NUMA); they differ in who binds the GPU to
+vfio-pci and who advertises it.
+
+| | `spec.kubevirt` (this lab) | `spec.nvidiaGPUOperator` |
+| --- | --- | --- |
+| Binds GPUs to vfio-pci | Device operator agent | GPU Operator VFIO Manager |
+| Advertises the resource | KubeVirt's device plugin, from the `permittedHostDevices` the operator writes | GPU Operator sandbox device plugin |
+| Resource name | `resourceName`, one per HostDevice | Automatic per model |
+| Extra components | None | GPU Operator in the provider cluster, `sandboxWorkloads.enabled` |
+| KubeVirt CR | Managed by the operator | Add a `permittedHostDevices` entry with `externalResourceProvider: true` yourself |
+| Kata Containers | No | Yes |
+| NVLink partitioning (`spec.nvlink`) | Yes | No |
+
+The lab uses `spec.kubevirt`. It is self-contained, and it keeps a single GPU
+Operator in the story, the one the `demo-gpu` Stack installs inside the GPU VM.
+It is also the path that NVLink partitioning needs on HGX
+([gpu-passthrough-hgx-b200-b300.md](gpu-passthrough-hgx-b200-b300.md)).
+
+`spec.nvidiaGPUOperator` fits when a customer needs Kata Containers, already
+runs the GPU Operator on its GPU nodes, or has many mixed SKUs and would rather
+not maintain a HostDevice per SKU.
+
+### Gaps at scale
+
+- **No automatic per-model names in `spec.kubevirt`.** One fleet-wide
+  HostDevice gives every model the same resource name. A `resourceName`
+  template derived from the discovered device ID would remove the
+  per-SKU HostDevice.
+- **Mixed-SKU nodes cannot be split.** A node belongs to one HostDevice, so a
+  server with two GPU models gets one resource name for both. This is rare: an
+  HGX baseboard carries a single SKU.
+
 ## Known gaps
 
 - **KubeVirt feature gates.** None were needed on KubeVirt 1.8.2: the GPU VM

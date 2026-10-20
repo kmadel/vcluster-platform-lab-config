@@ -218,6 +218,9 @@ Simplest: one partition size per host pool, with a NodeType per pool.
 
 ## The HostDevice, side by side
 
+A fleet needs one HostDevice per GPU SKU, not per server, selected by a node
+label from inventory. See "At scale" in [gpu-passthrough.md](gpu-passthrough.md).
+
 Lab:
 
 ```yaml
