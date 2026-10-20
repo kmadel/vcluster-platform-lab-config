@@ -70,7 +70,11 @@ spec:
                 # vfio-pci and no HostDevice selects this node. Static for the same
                 # reason as gpu-host: one dedicated machine, not autoscaled capacity.
                 - name: mock-gpu-host
-                  quantity: 1
+                  # 0 since 2026-10-20: rack-a-u20-xlarge is a simulated HGX B200 server on
+                  # the Metal3 provider (rack-a-b200-xlarge). Set back to 1, and retype the
+                  # host in NetBox as vmetal-xlarge / cpu-compute, to bring the KubeVirt mock
+                  # GPU VMs back.
+                  quantity: 0
                   properties:
                     vcluster.com/os-image: ubuntu-noble-bootstrap
                   nodeLabels:

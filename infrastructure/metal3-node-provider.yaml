@@ -165,9 +165,42 @@ spec:
           vcluster.com/profile: xlarge-gpu
           vcluster.com/rack: rack-b
           vcluster.com/row: row-1
-          # The "driver": nvml-mock from cloud-init, 8 GPUs.
-          vcluster.com/user-data-template-config: nvml-mock-b200
-          nvml-mock.vcluster.com/gpu-count: "8"
+          # The "driver": nvml-mock from cloud-init, 8 GPUs (built into the template,
+          # which is named for the server type so the node label reads normally).
+          vcluster.com/user-data-template-config: hgx-b200
+          # Single-valued properties become node labels: the driver and container
+          # toolkit are preinstalled, so the GPU Operator must not deploy them here.
+          nvidia.com/gpu.deploy.driver: "false"
+          nvidia.com/gpu.deploy.container-toolkit: "false"
+
+      # The same simulated server in rack A (rack-a-u20-xlarge, taken from the KubeVirt
+      # provider cluster on 2026-10-20). No rack-A NodeType selects gpu-compute broadly.
+      - name: rack-a-b200-xlarge
+        resources:
+          cpu: "8"
+          memory: 16Gi
+          nvidia.com/gpu: "8"
+        bareMetalHosts:
+          selector:
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-a
+              netbox.vcluster.com/role: gpu-compute
+              netbox.vcluster.com/device-type: hgx-b200
+        properties:
+          vcluster.com/accelerator: b200
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: "8"
+          vcluster.com/memory: 16Gi
+          vcluster.com/profile: xlarge-gpu
+          vcluster.com/rack: rack-a
+          vcluster.com/row: row-1
+          # The "driver": nvml-mock from cloud-init, 8 GPUs (built into the template,
+          # which is named for the server type so the node label reads normally).
+          vcluster.com/user-data-template-config: hgx-b200
           # Single-valued properties become node labels: the driver and container
           # toolkit are preinstalled, so the GPU Operator must not deploy them here.
           nvidia.com/gpu.deploy.driver: "false"
