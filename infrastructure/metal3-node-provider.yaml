@@ -173,6 +173,43 @@ spec:
           nvidia.com/gpu.deploy.driver: "false"
           nvidia.com/gpu.deploy.container-toolkit: "false"
 
+      # rack-b-u18-xlarge again, as a simulated GB300 NVL72 tray, for the gpu-burn-in
+      # NVLink fault tests: nvml-mock's GB300 profile simulates the tray's NVLink fabric
+      # (cluster UUID, clique, health), which the B200 profile above does not. Same host,
+      # same NetBox device: whichever NodeType claims it first gets it, so use one at a
+      # time. vcluster.com/accelerator must be gb300, because MachineConfigTemplate
+      # nvidia-gpu-server picks the nvml-mock profile from it. Tenant clusters select this
+      # NodeType by its profile, gpu-tray-qualification, which nothing else uses.
+      # Caution: kubevirt-provider-cluster's gpu-tray-host pool selects accelerator gb300.
+      # Its one claim holds rack-a-u20-xlarge today; if that claim is ever replaced while
+      # this host is free, it could land here.
+      - name: rack-b-gb300-tray-qualification
+        resources:
+          cpu: "8"
+          memory: 16Gi
+          nvidia.com/gpu: "4"
+        bareMetalHosts:
+          selector:
+            matchLabels:
+              demo: vmetal
+              machines.vcluster.com/source: netbox
+              netbox.vcluster.com/site: us-va-blacksburg-dc1
+              netbox.vcluster.com/location: row-1
+              netbox.vcluster.com/rack: rack-b
+              netbox.vcluster.com/role: gpu-compute
+              netbox.vcluster.com/device-type: hgx-b200
+        properties:
+          vcluster.com/accelerator: gb300
+          vcluster.com/az: us-va-blacksburg-dc1
+          vcluster.com/cpu: "8"
+          vcluster.com/memory: 16Gi
+          vcluster.com/profile: gpu-tray-qualification
+          vcluster.com/rack: rack-b
+          vcluster.com/row: row-1
+          vcluster.com/user-data-template-config: nvidia-gpu-server
+          nvidia.com/gpu.deploy.driver: "false"
+          nvidia.com/gpu.deploy.container-toolkit: "false"
+
       # A simulated GB300 NVL72 compute tray in rack A (rack-a-u20-xlarge, taken from the
       # KubeVirt provider cluster on 2026-10-20): NetBox device type gb300-tray, 4 GPUs
       # from nvml-mock. MachineConfigTemplate nvidia-gpu-server picks the GB300 profile from
