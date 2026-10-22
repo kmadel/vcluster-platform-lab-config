@@ -20,7 +20,6 @@ spec:
         - v1.34.11
         - v1.35.8
         - v1.36.4
-        - v1.37.0
       defaultValue: v1.36.4
       section: Control Plane
     - variable: cpuNodePool
@@ -84,7 +83,7 @@ spec:
                 - name: gpu
                   profile: '{{ if contains "--" .Values.loft.project }}gpu-compute-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}gpu-compute{{ end }}'
                   # This lab has one GPU machine available for private nodes.
-                  quantity: 1
+                  quantity: 0
                   properties:
                     vcluster.com/os-image: ubuntu-noble-nvidia-gpu
                   nodeTypeSelector:
@@ -92,9 +91,28 @@ spec:
                       operator: In
                       values:
                         - xlarge-gpu
+                # A simulated GB300 tray (Metal3 NodeType rack-a-gb300-tray: 4 GPUs from
+                # nvml-mock, installed by its cloud-init) carved into 1-GPU VMs
+                # (kvm-gb300-1gpu). The NVIDIA device plugin (provider-cluster-mock-gpu-
+                # device-plugin.yaml) advertises its 4 nvidia.com/gpu, and each VM requests
+                # one, so the scheduler fills the tray like a passthrough host. The GPU each
+                # VM reports still comes from nvml-mock inside the VM: no device is passed
+                # through. Shares the mock-gpu-host label so every other NodeType avoids it.
+                - name: gpu-tray-host
+                  profile: '{{ if contains "--" .Values.loft.project }}gpu-compute-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}gpu-compute{{ end }}'
+                  quantity: 1
+                  properties:
+                    vcluster.com/os-image: ubuntu-noble-bootstrap
+                  nodeLabels:
+                    demo.vcluster.com/mock-gpu-host: "true"
+                    demo.vcluster.com/mock-gpu-tray: "true"
+                    # Lets the NVIDIA device plugin's default affinity accept this node.
+                    nvidia.com/gpu.present: "true"
+                  nodeTypeSelector:
+                    - property: vcluster.com/accelerator
+                      value: gb300
                 - name: cpu
                   profile: '{{ if contains "--" .Values.loft.project }}cpu-services-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}cpu-services{{ end }}'
-
                   quantity: 1
                   nodeTypeSelector:
                     - property: vcluster.com/profile
