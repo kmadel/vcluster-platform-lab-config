@@ -49,7 +49,7 @@ spec:
               # See gpu-passthrough.md.
               static:
                 - name: gpu-host
-                  quantity: 0
+                  quantity: 1
                   properties:
                     # Never the NVIDIA image here: a driver holding the card blocks
                     # the vfio-pci bind, and the guest that owns the GPU is the VM.
