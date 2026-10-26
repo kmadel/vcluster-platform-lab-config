@@ -10,7 +10,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  displayName: ledger (Humana rehearsal)
+  displayName: ledger
   owner:
     user: admin
   clusterRef:

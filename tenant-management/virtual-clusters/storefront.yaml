@@ -10,7 +10,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  displayName: storefront (Humana rehearsal)
+  displayName: storefront
   owner:
     user: admin
   clusterRef:
