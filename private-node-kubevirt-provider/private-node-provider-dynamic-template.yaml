@@ -95,7 +95,7 @@ spec:
                 # VM reports still comes from nvml-mock inside the VM: no device is passed
                 # through. Shares the mock-gpu-host label so every other NodeType avoids it.
                 - name: gpu-tray-host
-                  quantity: 0
+                  quantity: 1
                   properties:
                     vcluster.com/os-image: ubuntu-noble-bootstrap
                     # nvml-mock makes "nvidia" containerd's default runtime, and KubeVirt VMs
@@ -112,6 +112,10 @@ spec:
                   nodeTypeSelector:
                     - property: vcluster.com/accelerator
                       value: gb300
+                    # rack-b-gb300-tray-qualification also advertises gb300; pin to the
+                    # rack-a tray so this pool never takes the qualification host.
+                    - property: vcluster.com/profile
+                      value: gpu-tray
           vpn:
             enabled: false
         networking:
