@@ -1,0 +1,23 @@
+# Shared nodes on loft-cluster, embedded etcd, the Stacks demo app inside: the
+# lab stand-in for Humana's storefront. fleet-bindings attaches
+# shared-node-tenant-collector and its writer Secret on its own.
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterInstance
+metadata:
+  name: tenant-c
+  namespace: p-team-a-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  displayName: storefront
+  owner:
+    user: admin
+  clusterRef:
+    cluster: loft-cluster
+  templateRef:
+    name: stacks-demo-app-tenant
+  # The template's repoURL default isn't applied when the instance passes no
+  # parameters: deploy.stacks then renders it empty and blocks the demo app.
+  parameters: |
+    repoURL: https://github.com/loft-demos/ce-demo-stacks-argocd.git
