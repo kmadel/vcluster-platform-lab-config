@@ -1,0 +1,37 @@
+# The GPU Operator alone, for a cluster whose node already has nvml-mock from its
+# cloud-init (kvm-gb300-1gpu-tenant). demo-mock-gpu would also install nvml-mock as
+# a DaemonSet, which these nodes don't need.
+apiVersion: storage.loft.sh/v1
+kind: StackTemplate
+metadata:
+  name: shared-node-gpu-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  displayName: GPU Operator on a cluster's own simulated-GPU node
+  description: Installs the GPU Operator version the cluster asks for, with the nvml-mock settings
+    from demo-gpu-operator-mock (driver and toolkit off, CDI on).
+  owner:
+    user: admin
+  parameters:
+    - variable: gpuOperatorVersion
+      label: GPU Operator Version
+      type: string
+      defaultValue: v26.3.3
+    - variable: argoProject
+      label: Argo CD Project
+      type: string
+      defaultValue: default
+  tasks:
+    - name: gpu-operator
+      timeout: 30m0s
+      argoCDApplication:
+        templateRef:
+          name: demo-gpu-operator-mock
+        parameters:
+          project: '{{ .Values.argoProject }}'
+          version: '{{ .Values.gpuOperatorVersion }}'
+          # Its NFD worker selects workload.example.com/pool, which
+          # kvm-gb300-1gpu-tenant sets as a property.
+          gpuNodePool: gpu-compute
+          standaloneDCGM: 'false'

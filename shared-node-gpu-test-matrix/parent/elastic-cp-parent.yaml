@@ -1,0 +1,109 @@
+# The elastic parent: a Private Nodes cluster with KubeVirt Auto Nodes that is also
+# connected to Platform as a control plane cluster. Shared-node clusters in the
+# gpu-test-matrix project run on it, and each one gets its own GPU VM from the
+# single "tenant" pool below. Nothing here changes when a cluster is added.
+#
+# Connecting it as a control plane cluster is a one-time CLI step after this syncs
+# (see ../README.md). Until then the tenant clusters wait for elastic-cp-parent.
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterInstance
+metadata:
+  name: elastic-cp-parent
+  namespace: p-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  displayName: elastic-cp-parent
+  description: Elastic control plane cluster for the shared-node GPU test matrix.
+  owner:
+    user: admin
+  clusterRef:
+    cluster: spark-cluster
+    namespace: p-platform-v-elastic-cp-parent
+  template:
+    metadata: {}
+    pro:
+      enabled: true
+    helmRelease:
+      chart:
+        name: vcluster
+        version: 0.37.3
+      values: |
+        privateNodes:
+          enabled: true
+          vpn:
+            enabled: true
+          autoNodes:
+            - provider: kubevirt-us-va-blacksburg-dc1
+              dynamic:
+                # Untainted: the parent's own system pods and every shared-node
+                # control plane land here.
+                - name: system
+                  nodeTypeSelector:
+                    - property: vcluster.com/node-type
+                      value: kvm-medium
+                    # Required. The Auto Nodes cloud provider registers every NodeType
+                    # property key as a well-known label, and Karpenter lets a pool
+                    # serve a pod that asks for a well-known label the pool doesn't
+                    # mention. Without this, a pending tenant pod can land here and
+                    # stamp its tenant label on a plain CPU node.
+                    - property: demo.vcluster.com/tenant
+                      operator: DoesNotExist
+                  limits:
+                    cpu: "4"
+                # One node per tenant cluster. Only NodeTypes that declare the tenant
+                # key with "*" match (kvm-gb300-1gpu-tenant). A shared-node cluster's
+                # synced pods carry nodeSelector demo.vcluster.com/tenant=<project>-<name>,
+                # so Karpenter's NodeClaim requires that one value and labels the new
+                # node with it.
+                - name: tenant
+                  nodeTypeSelector:
+                    - property: demo.vcluster.com/tenant
+                      operator: Exists
+                  taints:
+                    - key: demo.vcluster.com/tenant-pool
+                      value: "true"
+                      effect: NoSchedule
+                  limits:
+                    # Four 2-CPU GPU VMs: the GB300 tray's 4 simulated GPUs.
+                    cpu: "8"
+                  disruption:
+                    # A sleeping or deleted cluster empties its node; the VM goes back
+                    # to the tray and the next one boots clean.
+                    consolidationPolicy: WhenEmpty
+                    consolidateAfter: 2m
+        # KubeVirt NodeTypes use bridge binding on the provider cluster's pod network
+        # (10.64.0.0/16), so these must not overlap the provider's pod or service CIDRs.
+        networking:
+          podCIDR: 10.244.0.0/16
+          serviceCIDR: 10.96.0.0/16
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
+          statefulSet:
+            scheduling:
+              nodeSelector:
+                kubernetes.io/hostname: vmetal-w02
+        # fleet-bindings attaches cluster-collector-with-embedded-etcd to every
+        # private-node cluster, but its Argo CD binding stays InvalidConnector until
+        # this is set. ../parent/parent-dcgm-collector.yaml rides the same connector.
+        integrations:
+          argoCD:
+            enabled: true
+            connector: demo-lab
+        # Shared platform pieces the parent provides once for every cluster on it.
+        # Operand pods synced from a cluster's GPU Operator ask for runtimeClassName
+        # nvidia, and RuntimeClasses are not synced down from those clusters. The
+        # "nvidia" handler is the one nvml-mock's cloud-init adds to containerd.
+        experimental:
+          deploy:
+            vcluster:
+              manifests: |-
+                apiVersion: node.k8s.io/v1
+                kind: RuntimeClass
+                metadata:
+                  name: nvidia
+                handler: nvidia

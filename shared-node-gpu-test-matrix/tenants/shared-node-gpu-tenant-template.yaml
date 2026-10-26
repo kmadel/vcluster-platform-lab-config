@@ -1,0 +1,83 @@
+# A shared-node cluster that gets its own GPU node from the elastic parent and runs
+# its own GPU Operator version on it.
+#
+# The cluster's identity reaches the parent on its pods, not through the parent's
+# config: vCluster adds sync.fromHost.nodes.selector.labels as a nodeSelector to
+# every pod it syncs, and the parent's "tenant" pool turns that into a node labeled
+# for this cluster only.
+apiVersion: storage.loft.sh/v1
+kind: VirtualClusterTemplate
+metadata:
+  name: shared-node-gpu-tenant
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  displayName: Shared nodes, own GPU node and GPU Operator
+  description: |
+    Shared-node cluster on elastic-cp-parent. Gets a dedicated simulated GB300 VM,
+    and runs the GPU Operator version you pick on it.
+  owner:
+    user: admin
+  parameters:
+    - variable: gpuOperatorVersion
+      label: GPU Operator Version
+      description: |
+        Each cluster runs its own GPU Operator on its own node. The nodes are
+        simulated GPUs (nvml-mock), which v26.7.x and later can't run on: its
+        device plugin waits for a real nvidia kernel module.
+      type: string
+      options:
+        - v26.3.3
+        - v26.3.2
+        - v26.3.1
+      defaultValue: v26.3.3
+  template:
+    metadata: {}
+    instanceTemplate:
+      metadata: {}
+    pro: {}
+    helmRelease:
+      chart:
+        version: 0.37.3
+      values: |
+        controlPlane:
+          backingStore:
+            etcd:
+              embedded:
+                enabled: true
+          # DNS runs in the control plane pod, so no CoreDNS pod lands on (and
+          # holds) this cluster's GPU node.
+          coredns:
+            embedded: true
+        integrations:
+          argoCD:
+            enabled: true
+            connector: demo-lab
+        deploy:
+          stacks:
+            - name: gpu-operator
+              displayName: GPU Operator
+              templateRef:
+                name: shared-node-gpu-operator
+              parameters:
+                gpuOperatorVersion: '{{ .Values.gpuOperatorVersion }}'
+                argoProject: default
+              prunePolicy: Prune
+        sync:
+          fromHost:
+            nodes:
+              enabled: true
+              # Each node belongs to one cluster, so the labels its GPU Operator
+              # writes (nvidia.com/gpu.deploy.*) may reach the parent's node, where
+              # the operand DaemonSet pods actually run.
+              syncBackChanges: true
+              # Syncs only this cluster's node, and adds this nodeSelector to every
+              # pod synced to the parent.
+              selector:
+                labels:
+                  demo.vcluster.com/tenant: '{{ .Values.loft.project }}-{{ .Values.loft.virtualClusterName }}'
+          toHost:
+            pods:
+              # The parent's tenant pool is tainted, so only these pods land there.
+              enforceTolerations:
+                - demo.vcluster.com/tenant-pool=true:NoSchedule

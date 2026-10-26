@@ -1,0 +1,159 @@
+# DCGM metrics for every shared-node cluster on an elastic parent, collected once
+# on the parent.
+#
+# Each cluster's GPU Operator runs its own nvidia-dcgm-exporter, but the pod is
+# synced to the parent, into that cluster's host namespace. The bundled
+# shared-node-tenant-collector inside the cluster scrapes only its API server and
+# etcd, and the parent's cluster-collector-with-embedded-etcd only looks in the
+# parent's own gpu-operator namespace, so neither sees these exporters.
+#
+# This second collector scrapes them across namespaces and adds the cluster they
+# belong to (tenant_cluster, tenant_project). It writes with the parent's scope,
+# reusing the otel-otlp-auth Secret that fleet-bindings creates for the parent's
+# cluster collector in the same namespace.
+apiVersion: storage.loft.sh/v1
+kind: ArgoCDApplicationTemplate
+metadata:
+  name: parent-dcgm-collector
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  displayName: "Fleet Observability: DCGM for shared-node clusters on an elastic parent"
+  description: >-
+    One OpenTelemetry Deployment on an elastic parent that scrapes the nvidia-dcgm-exporter pods synced from its shared-node clusters and pushes them to the Fleet Observability Write Gateway with the parent's scope.
+  owner:
+    user: admin
+  parameters:
+    - variable: destinationNamespace
+      label: Destination Namespace
+      description: Must be the namespace of the parent's cluster collector, which holds otel-otlp-auth.
+      type: string
+      required: true
+      defaultValue: observability
+    - variable: project
+      label: Argo CD Project
+      type: string
+      required: true
+      defaultValue: default
+    - variable: otlpEndpoint
+      label: OTLP/HTTP endpoint
+      type: string
+      required: true
+      defaultValue: https://otel.lab.kurtmadel.com
+    - variable: scrapeInterval
+      label: Scrape interval
+      type: string
+      defaultValue: 15s
+  template:
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .Values.destinationNamespace }}'
+      project: '{{ .Values.project }}'
+      syncPolicy:
+        automated:
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      source:
+        repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+        chart: opentelemetry-collector
+        targetRevision: 0.162.0 # same chart as the bundled cluster-collector
+        helm:
+          releaseName: otel-dcgm
+          values: |
+            {{- $loft := .Values.loft | default dict }}
+            {{- if or (not $loft.project) (not $loft.name) }}
+            {{- fail "parent-dcgm-collector: the destination must be the elastic parent (a virtual cluster instance)" }}
+            {{- end }}
+            mode: deployment
+            replicaCount: 1
+            fullnameOverride: otel-dcgm
+
+            image:
+              repository: otel/opentelemetry-collector-contrib
+
+            ports:
+              otlp: {enabled: false}
+              otlp-http: {enabled: false}
+              jaeger-compact: {enabled: false}
+              jaeger-thrift: {enabled: false}
+              jaeger-grpc: {enabled: false}
+              zipkin: {enabled: false}
+            service:
+              enabled: false             # push only
+
+            # Pod discovery across every host namespace on the parent.
+            clusterRole:
+              create: true
+              rules:
+                - apiGroups: [""]
+                  resources: ["pods"]
+                  verbs: ["get", "list", "watch"]
+
+            extraVolumes:
+              - name: otlp-auth
+                secret:
+                  secretName: otel-otlp-auth
+            extraVolumeMounts:
+              - name: otlp-auth
+                mountPath: /etc/otel/auth
+                readOnly: true
+
+            config:
+              receivers:
+                prometheus:
+                  config:
+                    scrape_configs:
+                      - job_name: tenant-dcgm-exporter
+                        scrape_interval: {{ .Values.scrapeInterval }}
+                        kubernetes_sd_configs:
+                          - role: pod
+                        relabel_configs:
+                          # Synced pods keep the GPU Operator's app label ...
+                          - source_labels: [__meta_kubernetes_pod_label_app]
+                            regex: nvidia-dcgm-exporter
+                            action: keep
+                          # ... and vCluster adds the cluster that owns them.
+                          - source_labels: [__meta_kubernetes_pod_label_vcluster_loft_sh_managed_by]
+                            regex: .+
+                            action: keep
+                          - source_labels: [__meta_kubernetes_pod_container_port_number]
+                            regex: "9400"
+                            action: keep
+                          - source_labels: [__meta_kubernetes_pod_label_vcluster_loft_sh_managed_by]
+                            target_label: tenant_cluster
+                          # Host namespaces follow p-<project>-v-<name>
+                          # (namespacePattern on the gpu-test-matrix project).
+                          - source_labels: [__meta_kubernetes_namespace]
+                            regex: p-(.+)-v-.+
+                            target_label: tenant_project
+                          - source_labels: [__meta_kubernetes_pod_node_name]
+                            target_label: node
+
+              processors:
+                memory_limiter:
+                  check_interval: 1s
+                  limit_percentage: 75
+                  spike_limit_percentage: 15
+                batch:
+                  send_batch_size: 10000
+                  timeout: 10s
+
+              exporters:
+                otlp_http:
+                  endpoint: {{ .Values.otlpEndpoint | quote }}
+                  headers:
+                    X-Vcluster-Platform-Project: {{ $loft.project | quote }}
+                    X-Vcluster-Platform-Instance: {{ $loft.name | quote }}
+                    Authorization: "${file:/etc/otel/auth/authorization}"
+
+              service:
+                pipelines:
+                  metrics:
+                    receivers: [prometheus]
+                    processors: [memory_limiter, batch]
+                    exporters: [otlp_http]
+                  logs: null
+                  traces: null

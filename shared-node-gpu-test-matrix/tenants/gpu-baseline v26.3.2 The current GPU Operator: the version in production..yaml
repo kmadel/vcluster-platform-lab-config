@@ -1,0 +1,21 @@
+# gpu-baseline v26.3.2 The current GPU Operator: the version in production.
+# Instances created outside the UI get no parameter defaults, so the version is
+# always passed explicitly.
+apiVersion: management.loft.sh/v1
+kind: VirtualClusterInstance
+metadata:
+  name: gpu-baseline v26.3.2 The current GPU Operator: the version in production.
+  namespace: p-gpu-test-matrix
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  displayName: gpu-baseline v26.3.2 The current GPU Operator: the version in production.
+  owner:
+    user: admin
+  clusterRef:
+    cluster: elastic-cp-parent
+  templateRef:
+    name: shared-node-gpu-tenant
+  parameters: |
+    gpuOperatorVersion: 

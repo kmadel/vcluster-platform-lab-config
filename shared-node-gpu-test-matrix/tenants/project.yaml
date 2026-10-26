@@ -1,0 +1,33 @@
+# Shared-node clusters for the GPU test matrix. They live here, apart from the
+# parent (project platform), so the people testing GPU stacks never get access
+# to the parent itself.
+kind: Project
+apiVersion: management.loft.sh/v1
+metadata:
+  name: gpu-test-matrix
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  displayName: GPU test matrix
+  description: Shared-node clusters that each get their own GPU node and GPU stack from elastic-cp-parent.
+  owner:
+    user: admin
+  allowedClusters:
+    - name: elastic-cp-parent
+  allowedTemplates:
+    - kind: VirtualClusterTemplate
+      group: storage.loft.sh
+      name: shared-node-gpu-tenant
+    # deploy.stacks in that template creates a StackInstance in this project.
+    - kind: StackTemplate
+      group: storage.loft.sh
+      name: shared-node-gpu-operator
+  access:
+    - name: loft-admin-access
+      verbs: [get, update, patch, delete]
+      subresources: ['*']
+      users: [admin]
+  # parent-dcgm-collector derives tenant_project from this pattern.
+  namespacePattern:
+    virtualCluster: p-{{.Values.loft.project}}-v-{{.Values.loft.name}}

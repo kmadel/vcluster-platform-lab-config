@@ -1,0 +1,21 @@
+# Binds parent-dcgm-collector to the elastic parent. Hand-written rather than a
+# FleetProfile: fleet-bindings picks collector profiles by privateNodes alone, and
+# this collector belongs on elastic parents only.
+apiVersion: management.loft.sh/v1
+kind: ArgoCDApplication
+metadata:
+  name: parent-dcgm-collector-elastic-cp-parent
+  namespace: p-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  displayName: elastic-cp-parent DCGM collector
+  owner:
+    user: admin
+  destination:
+    virtualCluster:
+      name: elastic-cp-parent
+      target: vCluster
+  templateRef:
+    name: parent-dcgm-collector
