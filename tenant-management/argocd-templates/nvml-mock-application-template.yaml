@@ -51,6 +51,11 @@ spec:
       type: string
       required: true
       defaultValue: gpu-compute
+    - variable: driverVersion
+      label: Simulated Driver Version
+      description: Driver version nvidia-smi and NVML report, such as 580.82.07. Leave empty for the profile's own version.
+      type: string
+      defaultValue: ''
   template:
     spec:
       # Not "default": the NRI plugin skips pods in the release's own namespace, and
@@ -68,6 +73,10 @@ spec:
         helm:
           releaseName: nvml-mock
           values: |
+            {{- if .Values.driverVersion }}
+            # Chart 0.5.0+: replaces the driver version the profile reports.
+            driverVersion: {{ .Values.driverVersion | quote }}
+            {{- end }}
             gpu:
               profile: {{ .Values.gpuProfile | quote }}
               # The chart schema wants an integer, not a string.

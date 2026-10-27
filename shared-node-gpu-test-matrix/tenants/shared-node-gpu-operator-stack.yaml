@@ -1,6 +1,8 @@
-# The GPU Operator alone, for a cluster whose node already has nvml-mock from its
-# cloud-init (kvm-gb300-1gpu-tenant). demo-mock-gpu would also install nvml-mock as
-# a DaemonSet, which these nodes don't need.
+# A cluster's whole simulated GPU stack, on its own node: nvml-mock as the driver
+# (reporting the driver version the cluster asks for), then the GPU Operator. With
+# real GPUs the same Stack would be the GPU Operator alone, installing the driver
+# version the cluster asks for (driver.enabled, driver.version) on a node that is
+# reprovisioned clean when the cluster lets it go.
 apiVersion: storage.loft.sh/v1
 kind: StackTemplate
 metadata:
@@ -8,9 +10,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
-  displayName: GPU Operator on a cluster's own simulated-GPU node
-  description: Installs the GPU Operator version the cluster asks for, with the nvml-mock settings
-    from demo-gpu-operator-mock (driver and toolkit off, CDI on).
+  displayName: Simulated GPU driver and GPU Operator on a cluster's own node
+  description: nvml-mock with a chosen driver version, then the GPU Operator version the cluster asks
+    for, with the nvml-mock settings from demo-gpu-operator-mock (driver and toolkit off, CDI on).
   owner:
     user: admin
   parameters:
@@ -18,12 +20,38 @@ spec:
       label: GPU Operator Version
       type: string
       defaultValue: v26.3.3
+    - variable: driverVersion
+      label: Simulated Driver Version
+      description: Driver version nvml-mock reports. Empty keeps the GB300 profile's own (580.65.06).
+      type: string
+      defaultValue: 580.65.06
+    - variable: nvmlMockVersion
+      label: nvml-mock Chart Version
+      type: string
+      defaultValue: 0.5.0
     - variable: argoProject
       label: Argo CD Project
       type: string
       defaultValue: default
+  # Every parameter is passed explicitly: a template default only applies when the
+  # parameter is absent, and an empty value is dropped rather than passed.
   tasks:
+    - name: nvml-mock
+      timeout: 15m0s
+      argoCDApplication:
+        templateRef:
+          name: demo-nvml-mock
+        parameters:
+          project: '{{ .Values.argoProject }}'
+          version: '{{ .Values.nvmlMockVersion }}'
+          gpuProfile: gb300
+          gpusPerNode: '1'
+          # kvm-gb300-1gpu-tenant sets workload.example.com/pool as a property.
+          gpuNodePool: gpu-compute
+          driverVersion: '{{ .Values.driverVersion }}'
     - name: gpu-operator
+      dependsOn:
+        - nvml-mock
       timeout: 30m0s
       argoCDApplication:
         templateRef:
@@ -31,7 +59,5 @@ spec:
         parameters:
           project: '{{ .Values.argoProject }}'
           version: '{{ .Values.gpuOperatorVersion }}'
-          # Its NFD worker selects workload.example.com/pool, which
-          # kvm-gb300-1gpu-tenant sets as a property.
           gpuNodePool: gpu-compute
           standaloneDCGM: 'false'

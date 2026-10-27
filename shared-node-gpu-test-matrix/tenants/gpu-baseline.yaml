@@ -1,5 +1,5 @@
-# The current GPU Operator: the version in production.
-# Instances created outside the UI get no parameter defaults, so the version is
+# The current GPU stack: the driver and GPU Operator versions in production.
+# Instances created outside the UI get no parameter defaults, so the versions are
 # always passed explicitly.
 apiVersion: management.loft.sh/v1
 kind: VirtualClusterInstance
@@ -19,3 +19,4 @@ spec:
     name: shared-node-gpu-tenant
   parameters: |
     gpuOperatorVersion: v26.3.2
+    driverVersion: 580.65.06

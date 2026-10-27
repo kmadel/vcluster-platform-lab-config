@@ -356,14 +356,15 @@ spec:
                             nvidia.com/gpu: "1"
                           limits:
                             nvidia.com/gpu: "1"
-            # kvm-gb300-1gpu for the shared-node GPU test matrix
-            # (../shared-node-gpu-test-matrix): the same VM, plus the tenant key that
-            # elastic-cp-parent's "tenant" pool selects on. "*" becomes an Exists
-            # requirement, so the pool can serve any cluster and Karpenter labels each
-            # new VM with the one tenant value its pods ask for. Without the key, the
-            # pool skips this NodeType.
+            # One GB300 tray slot per cluster for the shared-node GPU test matrix
+            # (../shared-node-gpu-test-matrix). A plain VM: the cluster's own Stack
+            # installs nvml-mock (with the driver version it asks for) and then the GPU
+            # Operator, so nothing GPU-related comes from cloud-init. The tenant key with
+            # "*" becomes an Exists requirement, so elastic-cp-parent's "tenant" pool can
+            # serve any cluster and Karpenter labels each new VM with the one tenant
+            # value its pods ask for. Without the key, the pool skips this NodeType.
             - name: kvm-gb300-1gpu-tenant
-              displayName: KVM VM + 1 GPU of a GB300 tray, one per cluster (simulated, 2 CPU, 3 GiB)
+              displayName: KVM VM + 1 GPU slot of a GB300 tray, one per cluster (2 CPU, 3 GiB)
               maxCapacity: 8
               resources:
                 cpu: "2"
@@ -373,13 +374,23 @@ spec:
                 kubevirt.vcluster.com/capacity-type: on-demand
                 kubevirt.vcluster.com/root-disk-size: 30Gi
                 vcluster.com/accelerator: gb300
-                vcluster.com/user-data-template-config: nvidia-gpu-server
-                nvml-mock.vcluster.com/gpu-count: "1"
+                demo.vcluster.com/tenant: "*"
+                # The nvml-mock DaemonSet and the GPU Operator's NFD worker select this.
+                workload.example.com/pool: gpu-compute
+                # The GPU Operator's operand DaemonSets select these labels, and the
+                # kubelet checks them on the real node. The clusters don't sync node
+                # changes back to the parent (that would also erase the pool's taint;
+                # see the test matrix README), so they are set here instead of by the
+                # operator. nvml-mock is the driver and toolkit, so those two stay off.
+                nvidia.com/gpu.present: "true"
                 nvidia.com/gpu.deploy.driver: "false"
                 nvidia.com/gpu.deploy.container-toolkit: "false"
-                demo.vcluster.com/tenant: "*"
-                # demo-gpu-operator-mock's NFD worker selects this label.
-                workload.example.com/pool: gpu-compute
+                nvidia.com/gpu.deploy.device-plugin: "true"
+                nvidia.com/gpu.deploy.gpu-feature-discovery: "true"
+                nvidia.com/gpu.deploy.dcgm: "true"
+                nvidia.com/gpu.deploy.dcgm-exporter: "true"
+                nvidia.com/gpu.deploy.operator-validator: "true"
+                nvidia.com/gpu.deploy.node-status-exporter: "true"
               metadata:
                 annotations:
                   # A cluster's first pods (its GPU Operator) request no GPU. Without

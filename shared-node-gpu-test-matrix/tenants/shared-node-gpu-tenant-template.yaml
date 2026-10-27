@@ -1,5 +1,5 @@
 # A shared-node cluster that gets its own GPU node from the elastic parent and runs
-# its own GPU Operator version on it.
+# its own simulated driver version and GPU Operator version on it.
 #
 # The cluster's identity reaches the parent on its pods, not through the parent's
 # config: vCluster adds sync.fromHost.nodes.selector.labels as a nodeSelector to
@@ -12,25 +12,38 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
-  displayName: Shared nodes, own GPU node and GPU Operator
+  displayName: Shared nodes, own GPU node, driver, and GPU Operator
   description: |
-    Shared-node cluster on elastic-cp-parent. Gets a dedicated simulated GB300 VM,
-    and runs the GPU Operator version you pick on it.
+    Shared-node cluster on elastic-cp-parent. Gets a dedicated GB300 tray slot and
+    runs the simulated driver version and GPU Operator version you pick on it.
   owner:
     user: admin
   parameters:
     - variable: gpuOperatorVersion
       label: GPU Operator Version
       description: |
-        Each cluster runs its own GPU Operator on its own node. The nodes are
-        simulated GPUs (nvml-mock), which v26.7.x and later can't run on: its
-        device plugin waits for a real nvidia kernel module.
+        Each cluster runs its own GPU Operator on its own node. The GPUs are
+        simulated (nvml-mock), which v26.7.x and later can't run on: its device
+        plugin waits for a real nvidia kernel module.
       type: string
       options:
         - v26.3.3
         - v26.3.2
         - v26.3.1
       defaultValue: v26.3.3
+    - variable: driverVersion
+      label: Simulated Driver Version
+      description: |
+        The driver version nvml-mock reports on this cluster's node (nvidia-smi,
+        NVML, GFD labels). With real GPUs, this would be the driver version the GPU
+        Operator installs.
+      type: string
+      options:
+        - 580.65.06
+        - 580.82.07
+        - 575.57.08
+        - 570.172.08
+      defaultValue: 580.65.06
   template:
     metadata: {}
     instanceTemplate:
@@ -56,21 +69,25 @@ spec:
         deploy:
           stacks:
             - name: gpu-operator
-              displayName: GPU Operator
+              displayName: Simulated GPU driver and GPU Operator
               templateRef:
                 name: shared-node-gpu-operator
               parameters:
                 gpuOperatorVersion: '{{ .Values.gpuOperatorVersion }}'
+                driverVersion: '{{ .Values.driverVersion }}'
+                nvmlMockVersion: 0.5.0
                 argoProject: default
               prunePolicy: Prune
         sync:
           fromHost:
             nodes:
               enabled: true
-              # Each node belongs to one cluster, so the labels its GPU Operator
-              # writes (nvidia.com/gpu.deploy.*) may reach the parent's node, where
-              # the operand DaemonSet pods actually run.
-              syncBackChanges: true
+              # No syncBackChanges. Combined with enforceTolerations below, it erases
+              # the parent pool's taint from the real node: vCluster hides taints the
+              # cluster's pods tolerate from the cluster's view of its node, and
+              # syncing that view back writes the node's taints without it. The labels
+              # the GPU Operator needs on the real node come from the NodeType instead.
+              #
               # Syncs only this cluster's node, and adds this nodeSelector to every
               # pod synced to the parent.
               selector:
