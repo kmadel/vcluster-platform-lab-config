@@ -192,8 +192,15 @@ name, `gpuOperatorVersion`, and `driverVersion`. Nothing on the parent changes.
 ## Limits
 
 - **Simulated GPUs.** The driver version per cluster is what nvml-mock reports,
-  not an installed driver. Check whether `nvidia-smi`'s CUDA version follows the
-  driver version, or stays at the GB300 profile's 13.0.
+  not an installed driver.
+- **`driverVersion` needs nvml-mock 0.6.0 or later.** In chart 0.5.0 and 0.5.1 it
+  only sets the node agent's `DRIVER_VERSION` environment variable; NVML, and so
+  `nvidia-smi`, GFD, and DCGM, still report the profile's `580.65.06`. The chart on
+  `main` (0.6.0-dev) writes it into the profile's `system.driver_version`. Once
+  0.6.0 is released, raise `nvmlMockVersion` in the cluster template.
+- **Control plane storage.** Each cluster's embedded etcd is a `local-path` volume
+  on whichever `system` node it lands on. If that node is replaced, the cluster's
+  state is lost (it is all re-created from Git, but the cluster restarts empty).
 - **GPU Operator v26.7.x and later don't run on nvml-mock.** The device plugin's
   init container waits for an `nvidia` kernel module. Stay on v26.3.x.
 - **Every GPU has the same UUID** (`GPU-b300b300-0000-…`); nvml-mock hard-codes

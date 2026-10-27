@@ -36,7 +36,8 @@ spec:
       description: |
         The driver version nvml-mock reports on this cluster's node (nvidia-smi,
         NVML, GFD labels). With real GPUs, this would be the driver version the GPU
-        Operator installs.
+        Operator installs. Takes effect with nvml-mock 0.6.0 and later; on 0.5.x
+        every cluster reports the profile's 580.65.06.
       type: string
       options:
         - 580.65.06

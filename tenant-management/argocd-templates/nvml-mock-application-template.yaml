@@ -53,7 +53,7 @@ spec:
       defaultValue: gpu-compute
     - variable: driverVersion
       label: Simulated Driver Version
-      description: Driver version nvidia-smi and NVML report, such as 580.82.07. Leave empty for the profile's own version.
+      description: Driver version nvidia-smi and NVML report, such as 580.82.07 (chart 0.6.0+; on 0.5.x it only reaches the node agent). Leave empty for the profile's own version.
       type: string
       defaultValue: ''
   template:
@@ -74,7 +74,7 @@ spec:
           releaseName: nvml-mock
           values: |
             {{- if .Values.driverVersion }}
-            # Chart 0.5.0+: replaces the driver version the profile reports.
+            # Reported by NVML from chart 0.6.0; on 0.5.x only the node agent gets it.
             driverVersion: {{ .Values.driverVersion | quote }}
             {{- end }}
             gpu:
