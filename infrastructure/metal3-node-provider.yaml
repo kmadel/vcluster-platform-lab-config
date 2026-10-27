@@ -110,6 +110,7 @@ spec:
       # never schedule. No device-type key, so it keeps working whether the
       # inventory calls that profile `xlarge` or `xlarge-gpu`.
       - name: rack-c-xlarge-gpu-pool
+        displayName: RTX 2000 Ada host
         metadata:
           labels:
             tenants.demo.vcluster.com/acme: "true"
@@ -143,6 +144,7 @@ spec:
       # installed. Rack B, not C: rack-c-xlarge-gpu-pool selects every gpu-compute host
       # in rack C. Demo only, nothing CUDA runs; present the GPUs as simulated.
       - name: rack-b-b200-xlarge
+        displayName: B200 server (sim)
         resources:
           cpu: "8"
           memory: 16Gi
@@ -184,6 +186,7 @@ spec:
       # Its one claim holds rack-a-u20-xlarge today; if that claim is ever replaced while
       # this host is free, it could land here.
       - name: rack-b-gb300-tray-qualification
+        displayName: GB300 tray QA (sim)
         resources:
           cpu: "8"
           memory: 16Gi
@@ -216,6 +219,7 @@ spec:
       # vcluster.com/accelerator. No kubernetes.io/arch property: real GB300 trays are
       # arm64 (Grace), this host is x86, and an arm64 label would break every pod.
       - name: rack-a-gb300-tray
+        displayName: GB300 tray (sim)
         resources:
           cpu: "8"
           memory: 16Gi
@@ -244,6 +248,7 @@ spec:
 
       # ---- rack-a -----------------------------------------------------------
       - name: rack-a-small-pool
+        displayName: Rack A small
         metadata:
           labels:
             tenants.demo.vcluster.com/acme: "true"
@@ -270,6 +275,7 @@ spec:
           vcluster.com/row: row-1
 
       - name: rack-a-medium-pool
+        displayName: Rack A medium
         metadata:
           labels:
             tenants.demo.vcluster.com/acme: "true"
@@ -296,6 +302,7 @@ spec:
           vcluster.com/row: row-1
 
       - name: rack-a-large-pool
+        displayName: Rack A large
         metadata:
           annotations:
             # for kubevirt resources below - skips any NodeType that advertises an extended resource
@@ -328,6 +335,7 @@ spec:
           vcluster.com/row: row-1
 
       - name: rack-a-xlarge-pool
+        displayName: Rack A xlarge
         metadata:
           annotations:
             nodetype.loft.sh/allow-unneeded-special-resources: "true"
@@ -360,6 +368,7 @@ spec:
 
       # ---- rack-b -----------------------------------------------------------
       - name: rack-b-small-pool
+        displayName: Rack B small
         metadata:
           labels:
             tenants.demo.vcluster.com/globex: "true"
@@ -389,6 +398,7 @@ spec:
       # large, xlarge. Kept so the pool list stays symmetric with rack-a; drop
       # it if an always-empty pool in the UI is worse than the asymmetry.
       - name: rack-b-medium-pool
+        displayName: Rack B medium
         metadata: {}
         resources:
           cpu: "3"
@@ -413,6 +423,7 @@ spec:
           vcluster.com/row: row-1
 
       - name: rack-b-large-pool
+        displayName: Rack B large
         metadata:
           labels:
             tenants.demo.vcluster.com/globex: "true"
@@ -446,6 +457,7 @@ spec:
           vcluster.com/row: row-1
 
       - name: rack-b-xlarge-pool
+        displayName: Rack B xlarge
         metadata:
           labels:
             tenants.demo.vcluster.com/globex: "true"
