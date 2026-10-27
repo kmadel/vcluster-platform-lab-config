@@ -16,7 +16,7 @@ This is a pattern built from today's pieces, not a product feature.
 
 ```text
 spark-cluster (control plane cluster)
-└─ elastic-cp-parent        Private Nodes + KubeVirt Auto Nodes, project platform,
+└─ elastic-cp-parent        Private Nodes + KubeVirt Auto Nodes (could be any node provider), project `platform` (private Platform project for Private Node tenant clusters also used as control plane clusters),
    │                        also connected to Platform as a control plane cluster
    ├─ system pool           kvm-medium VMs: parent system pods, cluster control planes
    └─ tenant pool           kvm-gb300-1gpu-tenant VMs, tainted, one per cluster
@@ -27,7 +27,7 @@ spark-cluster (control plane cluster)
 Each cluster's identity reaches the parent on its pods, so the parent's config
 never changes when a cluster is added:
 
-1. The cluster template sets
+1. The `shared-node-gpu-tenant` cluster template sets
    `sync.fromHost.nodes.selector.labels: {demo.vcluster.com/tenant: <project>-<name>}`.
    vCluster adds that nodeSelector to every pod it syncs to the parent, and syncs
    only nodes with that label back into the cluster.
@@ -35,20 +35,22 @@ never changes when a cluster is added:
 3. The `kvm-gb300-1gpu-tenant` NodeType sets the property
    `demo.vcluster.com/tenant: "*"`, which Platform turns into an `Exists`
    requirement, so the pool can use it for any cluster.
-4. The cluster's first pending pod makes Karpenter, inside the parent, create a
-   NodeClaim that requires that one tenant value
+4. Taking `gpu-baseline` as the example: the first pod it syncs to
+   `elastic-cp-parent` waits there for a node. Karpenter, running in
+   `elastic-cp-parent`, creates a NodeClaim that requires that one tenant value
    (`demo.vcluster.com/tenant In [gpu-test-matrix-gpu-baseline]`). When the VM
-   joins, Karpenter copies the label to the Node, and the node appears only in its
-   own cluster.
-5. When the cluster sleeps or is deleted, its node empties and is consolidated
+   joins `elastic-cp-parent`, Karpenter copies the label to the new Node. Since
+   `gpu-baseline` syncs only nodes with its own tenant label, the node shows up in
+   `gpu-baseline` and in no other shared-node cluster.
+5. When `gpu-baseline` sleeps or is deleted, its node empties and is consolidated
    after 2 minutes. The VM goes back to the GB300 tray.
 
 Two keys, two jobs: `demo.vcluster.com/tenant` is the per-cluster **label**, and
 `demo.vcluster.com/tenant-pool=true:NoSchedule` is the pool's **taint**, the same
 on every tenant node.
 
-To see the tenant value, look at the Karpenter NodeClaims inside the parent, not
-the Platform NodeClaims in `p-platform`. The Platform NodeClaim only asks the
+To see the tenant value, look at the Karpenter `NodeClaims` inside the parent, not
+the Platform `NodeClaims` in `p-platform`. The Platform `NodeClaim` only asks the
 KubeVirt provider for a VM of a type, and carries no tenant value:
 
 ```bash
@@ -70,7 +72,7 @@ The GPUs are simulated: the GB300 tray (`rack-a-u20-xlarge`) is carved into
 one-GPU-slot VMs, and nvml-mock makes each VM report one GB300. With real GPUs,
 the Stack would be the GPU Operator alone, installing the driver version the
 cluster asks for (`driver.enabled`, `driver.version`). That's safe because the
-node belongs to one cluster and is reprovisioned when it's returned.
+node belongs to one shared-node tenant cluster and is reprovisioned when it's returned.
 
 ## Files
 
@@ -97,12 +99,21 @@ Defined outside this folder:
 
 ## Settings that matter
 
-- **No `syncBackChanges` on the clusters.** vCluster hides the taints a cluster's
-  pods tolerate (here, through `enforceTolerations`) from the cluster's view of
-  its node. With `syncBackChanges: true`, any node update from inside the cluster
-  (the GPU Operator and NFD label nodes) writes that view back to the real node
-  and erases the pool's taint. Without the taint, parent pods and other clusters'
-  control planes land on tenant GPU nodes, which then never consolidate.
+- **No `syncBackChanges` in the `shared-node-gpu-tenant` template.** Combined with
+  `enforceTolerations`, it removes the `tenant` pool's taint from the GPU node:
+  1. `enforceTolerations` makes every `gpu-baseline` pod tolerate
+     `demo.vcluster.com/tenant-pool`. vCluster therefore leaves that taint out of
+     `gpu-baseline`'s copy of its node, since none of its pods are affected by it.
+  2. The GPU Operator and NFD, running in `gpu-baseline`, update that copy of the
+     node to add their labels.
+  3. With `syncBackChanges: true`, vCluster writes the copy back to the real node
+     in `elastic-cp-parent`, including its taint list, which no longer has the
+     taint.
+
+  Once the taint is gone, `elastic-cp-parent`'s own pods and the other
+  clusters' control plane pods can be scheduled on `gpu-baseline`'s GPU node.
+  That mixes clusters on one node, and the node never empties, so it's never
+  consolidated.
 - **The GPU Operator's node labels come from the NodeType.** Its operand
   DaemonSets select `nvidia.com/gpu.deploy.<component>=true`, and the kubelet
   checks those labels on the real node. Without sync-back, the operator can't put
@@ -119,9 +130,25 @@ Defined outside this folder:
   NodeType with an extended resource the claim doesn't request.
 - **Embedded CoreDNS** in each cluster, so no CoreDNS pod sits on (and holds) the
   GPU node.
-- **The parent provides the `nvidia` RuntimeClass** through
-  `experimental.deploy.vcluster.manifests`. Operand pods ask for it, and
-  RuntimeClasses aren't synced down from the clusters.
+- **`elastic-cp-parent` has its own `nvidia` RuntimeClass.** A shared-node
+  cluster's pods run in `elastic-cp-parent`, so anything Kubernetes needs to
+  start them has to exist there, not only in the cluster that created them:
+  1. The GPU Operator's device plugin, GFD, DCGM exporter, and validator pods set
+     `runtimeClassName: nvidia`, which selects the containerd runtime that gives a
+     container the GPU devices and driver libraries.
+  2. The GPU Operator in `gpu-baseline` creates a RuntimeClass named `nvidia`, but
+     only in `gpu-baseline`. vCluster can sync RuntimeClasses from a host into a
+     cluster (`sync.fromHost.runtimeClasses`), but not the other way.
+  3. vCluster syncs those pods to `elastic-cp-parent` with
+     `runtimeClassName: nvidia` unchanged. Without a RuntimeClass by that name in
+     `elastic-cp-parent`, the API server rejects them.
+
+  `elastic-cp-parent`'s config creates the RuntimeClass inside itself with
+  `experimental.deploy.vcluster.manifests`, so it's part of the parent's
+  definition in Git, and one copy serves every shared-node cluster on it. Its
+  `handler: nvidia` names the runtime that nvml-mock's node agent adds to
+  containerd on each GPU node. With real GPUs, the GPU Operator's container
+  toolkit adds it instead.
 
 Check that every tenant node still has its taint:
 

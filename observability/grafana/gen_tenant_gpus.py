@@ -11,6 +11,13 @@ SM and memory clocks, total energy, encoder/decoder utilization and NVLink bandw
 
 GPUs are keyed by node (Hostname) and index, never UUID: nvml-mock gives GPU N the same
 UUID on every node.
+
+Two kinds of series feed it. Most come from a collector inside the cluster that owns the GPU,
+scoped to that cluster (vcluster_platform_project/instance). A shared-node cluster's GPUs are
+collected on its elastic parent instead (shared-node-gpu-test-matrix/parent/
+parent-dcgm-collector-template.yaml): those are written with the parent's scope and carry the
+owning cluster as tenant_project/tenant_cluster. m() relabels them so every panel and
+selector shows the owning cluster, never the parent.
 """
 import json
 import pathlib
@@ -20,16 +27,57 @@ DS = {"type": "prometheus", "uid": "${datasource}"}
 
 # Every tenant-cluster DCGM series carries these. The tenant variable's All value is ".+",
 # so control-plane-cluster GPUs (no vcluster_platform_instance) never mix in.
-SEL = ('vcluster_platform_project=~"$project",vcluster_platform_instance=~"$tenant",'
-       'Hostname=~"$node",modelName=~"$model"')
+GPU_SEL = 'Hostname=~"$node",modelName=~"$model"'
+# Series from the cluster's own collector (no tenant_cluster label).
+OWN_SEL = ('tenant_cluster="",vcluster_platform_project=~"$project",'
+           f'vcluster_platform_instance=~"$tenant",{GPU_SEL}')
+# Series collected on an elastic parent for one of its shared-node clusters.
+HOSTED_SEL = f'tenant_cluster=~"$tenant",tenant_project=~"$project",{GPU_SEL}'
 NODE_SEL = ('vcluster_platform_project=~"$project",vcluster_platform_instance=~"$tenant",'
             'k8s_node_name=~"$node"')
 GPU_KEY = "vcluster_platform_project, vcluster_platform_instance, Hostname, gpu"
 GPU_LEGEND = "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
 
 
-def m(name):
-    return f"{name}{{{SEL}}}"
+def as_owner(expr):
+    """Gives a parent-collected series the labels of the cluster that owns the GPU."""
+    return ('label_replace(label_replace(' + expr +
+            ', "vcluster_platform_instance", "$1", "tenant_cluster", "(.+)")'
+            ', "vcluster_platform_project", "$1", "tenant_project", "(.+)")')
+
+
+def m(name, fn=None, rng=None):
+    """A DCGM metric from both sources, labeled by owning cluster.
+
+    fn/rng apply a range function per source (for example increase over 1h), since a
+    range selector can't follow the "or" that joins the two.
+    """
+    def one(sel):
+        s = f"{name}{{{sel}}}"
+        if rng:
+            s = f"{s}[{rng}]"
+        return f"{fn}({s})" if fn else s
+    return f"({one(OWN_SEL)} or {as_owner(one(HOSTED_SEL))})"
+
+
+def current(expr):
+    """Keeps only GPUs reporting right now, so a table built from 1h windows doesn't list
+    GPUs on nodes that are gone."""
+    return f"{expr} and {per_gpu(m('DCGM_FI_DEV_GPU_UTIL'))}"
+
+
+def owners(label):
+    """Values of the owning cluster's label, for a selector: tenant_* on parent-collected
+    series, vcluster_platform_* on the rest."""
+    hosted = {"vcluster_platform_project": "tenant_project",
+              "vcluster_platform_instance": "tenant_cluster"}[label]
+    filt = '' if label == "vcluster_platform_project" else ',tenant_project=~"$project"'
+    own_filt = '' if label == "vcluster_platform_project" else ',vcluster_platform_project=~"$project"'
+    return ("query_result(count by (owner) ("
+            f'label_replace(DCGM_FI_DEV_GPU_UTIL{{tenant_cluster="",vcluster_platform_instance!=""{own_filt}}}, '
+            f'"owner", "$1", "{label}", "(.+)") or '
+            f'label_replace(DCGM_FI_DEV_GPU_UTIL{{tenant_cluster!=""{filt}}}, '
+            f'"owner", "$1", "{hosted}", "(.+)")))')
 
 
 def per_gpu(expr):
@@ -37,9 +85,22 @@ def per_gpu(expr):
 
 
 FB_TOTAL = f"({m('DCGM_FI_DEV_FB_FREE')} + {m('DCGM_FI_DEV_FB_USED')} + {m('DCGM_FI_DEV_FB_RESERVED')})"
-XID_1H = f"increase({m('DCGM_EXP_XID_ERRORS_COUNT_total')}[1h])"
+XID_1H = m("DCGM_EXP_XID_ERRORS_COUNT_total", "increase", "1h")
 
 _ids = iter(range(1, 1000))
+
+
+OWNER_RE = '/owner="([^"]+)"/'
+
+
+def gpu_label_values(label):
+    """Values of a GPU label (node, model) for the selected projects and clusters, from both
+    sources."""
+    return ("query_result(count by (owner) ("
+            f'label_replace(DCGM_FI_DEV_GPU_UTIL{{tenant_cluster="",vcluster_platform_project=~"$project",'
+            f'vcluster_platform_instance=~"$tenant"}}, "owner", "$1", "{label}", "(.+)") or '
+            f'label_replace(DCGM_FI_DEV_GPU_UTIL{{tenant_cluster=~"$tenant",tenant_project=~"$project"}}, '
+            f'"owner", "$1", "{label}", "(.+)")))')
 
 
 def target(expr, legend="", ref="A", instant=False, fmt="time_series"):
@@ -100,7 +161,7 @@ def inventory(y):
         ("D", per_gpu(m("DCGM_FI_DEV_GPU_TEMP"))),
         ("E", per_gpu(m("DCGM_FI_DEV_POWER_USAGE"))),
         ("F", per_gpu(FB_TOTAL)),
-        ("G", per_gpu(XID_1H)),
+        ("G", current(per_gpu(XID_1H))),
     ]
     rename = {"vcluster_platform_project": "Project", "vcluster_platform_instance": "Tenant cluster",
               "Hostname": "Node", "gpu": "GPU", "modelName": "Model",
@@ -134,8 +195,9 @@ def inventory(y):
                         "sortBy": [{"displayName": "Tenant cluster", "desc": False}]}}
 
 
-def var(name, label, query, all_value=".*", multi=True, hide=0):
+def var(name, label, query, all_value=".*", multi=True, hide=0, regex=""):
     return {"name": name, "label": label, "type": "query", "datasource": DS, "hide": hide,
+            "regex": regex,
             "query": {"query": query, "refId": "StandardVariableQuery"}, "definition": query,
             "refresh": 2, "sort": 1, "multi": multi, "includeAll": True, "allValue": all_value,
             "current": {"selected": True, "text": ["All"], "value": ["$__all"]}}
@@ -212,10 +274,10 @@ def build():
         ts("XID errors (1h)", [target(per_gpu(XID_1H), GPU_LEGEND)], 0, y, w=8, unit="none",
            desc="A rise here is what NVSentinel acts on."),
         ts("Remapped rows", [
-            target(per_gpu(f"increase({m('DCGM_FI_DEV_UNCORRECTABLE_REMAPPED_ROWS_total')}[1h])"), GPU_LEGEND + " uncorrectable", "A"),
-            target(per_gpu(f"increase({m('DCGM_FI_DEV_CORRECTABLE_REMAPPED_ROWS_total')}[1h])"), GPU_LEGEND + " correctable", "B"),
+            target(per_gpu(m('DCGM_FI_DEV_UNCORRECTABLE_REMAPPED_ROWS_total', 'increase', '1h')), GPU_LEGEND + " uncorrectable", "A"),
+            target(per_gpu(m('DCGM_FI_DEV_CORRECTABLE_REMAPPED_ROWS_total', 'increase', '1h')), GPU_LEGEND + " correctable", "B"),
         ], 8, y, w=8, unit="none", desc="Memory rows remapped in the last hour."),
-        ts("PCIe replays (1h)", [target(per_gpu(f"increase({m('DCGM_FI_DEV_PCIE_REPLAY_COUNTER_total')}[1h])"), GPU_LEGEND)],
+        ts("PCIe replays (1h)", [target(per_gpu(m('DCGM_FI_DEV_PCIE_REPLAY_COUNTER_total', 'increase', '1h')), GPU_LEGEND)],
            16, y, w=8, unit="none"),
     ]
     y += 8
@@ -260,15 +322,13 @@ def build():
             # dashboard also serves a tenant looking at only its own clusters.
             {"name": "datasource", "label": "Datasource", "type": "datasource", "query": "prometheus",
              "hide": 2, "current": {"text": FLEET_DS, "value": FLEET_DS}, "regex": "", "refresh": 1},
-            var("project", "Project",
-                'label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_instance!=""}, vcluster_platform_project)'),
-            var("tenant", "Tenant cluster",
-                'label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~"$project",vcluster_platform_instance!=""}, vcluster_platform_instance)',
-                all_value=".+"),
-            var("node", "Node",
-                'label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~"$project",vcluster_platform_instance=~"$tenant"}, Hostname)'),
-            var("model", "GPU model",
-                'label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~"$project",vcluster_platform_instance=~"$tenant"}, modelName)'),
+            # query_result over both sources, so a shared-node cluster's GPUs list under the
+            # cluster that owns them rather than under its elastic parent.
+            var("project", "Project", owners("vcluster_platform_project"), regex=OWNER_RE),
+            var("tenant", "Tenant cluster", owners("vcluster_platform_instance"), all_value=".+",
+                regex=OWNER_RE),
+            var("node", "Node", gpu_label_values("Hostname"), regex=OWNER_RE),
+            var("model", "GPU model", gpu_label_values("modelName"), regex=OWNER_RE),
         ]},
         "panels": p,
     }

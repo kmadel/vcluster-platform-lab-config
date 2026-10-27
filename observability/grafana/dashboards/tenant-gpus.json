@@ -80,11 +80,12 @@
           "uid": "${datasource}"
         },
         "hide": 0,
+        "regex": "/owner=\"([^\"]+)\"/",
         "query": {
-          "query": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_instance!=\"\"}, vcluster_platform_project)",
+          "query": "query_result(count by (owner) (label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_instance!=\"\"}, \"owner\", \"$1\", \"vcluster_platform_project\", \"(.+)\") or label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster!=\"\"}, \"owner\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "StandardVariableQuery"
         },
-        "definition": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_instance!=\"\"}, vcluster_platform_project)",
+        "definition": "query_result(count by (owner) (label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_instance!=\"\"}, \"owner\", \"$1\", \"vcluster_platform_project\", \"(.+)\") or label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster!=\"\"}, \"owner\", \"$1\", \"tenant_project\", \"(.+)\")))",
         "refresh": 2,
         "sort": 1,
         "multi": true,
@@ -109,11 +110,12 @@
           "uid": "${datasource}"
         },
         "hide": 0,
+        "regex": "/owner=\"([^\"]+)\"/",
         "query": {
-          "query": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance!=\"\"}, vcluster_platform_instance)",
+          "query": "query_result(count by (owner) (label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_instance!=\"\",vcluster_platform_project=~\"$project\"}, \"owner\", \"$1\", \"vcluster_platform_instance\", \"(.+)\") or label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster!=\"\",tenant_project=~\"$project\"}, \"owner\", \"$1\", \"tenant_cluster\", \"(.+)\")))",
           "refId": "StandardVariableQuery"
         },
-        "definition": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance!=\"\"}, vcluster_platform_instance)",
+        "definition": "query_result(count by (owner) (label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_instance!=\"\",vcluster_platform_project=~\"$project\"}, \"owner\", \"$1\", \"vcluster_platform_instance\", \"(.+)\") or label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster!=\"\",tenant_project=~\"$project\"}, \"owner\", \"$1\", \"tenant_cluster\", \"(.+)\")))",
         "refresh": 2,
         "sort": 1,
         "multi": true,
@@ -138,11 +140,12 @@
           "uid": "${datasource}"
         },
         "hide": 0,
+        "regex": "/owner=\"([^\"]+)\"/",
         "query": {
-          "query": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, Hostname)",
+          "query": "query_result(count by (owner) (label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, \"owner\", \"$1\", \"Hostname\", \"(.+)\") or label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\"}, \"owner\", \"$1\", \"Hostname\", \"(.+)\")))",
           "refId": "StandardVariableQuery"
         },
-        "definition": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, Hostname)",
+        "definition": "query_result(count by (owner) (label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, \"owner\", \"$1\", \"Hostname\", \"(.+)\") or label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\"}, \"owner\", \"$1\", \"Hostname\", \"(.+)\")))",
         "refresh": 2,
         "sort": 1,
         "multi": true,
@@ -167,11 +170,12 @@
           "uid": "${datasource}"
         },
         "hide": 0,
+        "regex": "/owner=\"([^\"]+)\"/",
         "query": {
-          "query": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, modelName)",
+          "query": "query_result(count by (owner) (label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, \"owner\", \"$1\", \"modelName\", \"(.+)\") or label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\"}, \"owner\", \"$1\", \"modelName\", \"(.+)\")))",
           "refId": "StandardVariableQuery"
         },
-        "definition": "label_values(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, modelName)",
+        "definition": "query_result(count by (owner) (label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\"}, \"owner\", \"$1\", \"modelName\", \"(.+)\") or label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\"}, \"owner\", \"$1\", \"modelName\", \"(.+)\")))",
         "refresh": 2,
         "sort": 1,
         "multi": true,
@@ -242,7 +246,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count(count by (vcluster_platform_instance) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})) or vector(0)",
+          "expr": "count(count by (vcluster_platform_instance) ((DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))) or vector(0)",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -303,7 +307,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}) or vector(0)",
+          "expr": "count((DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\"))) or vector(0)",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -365,7 +369,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "avg((DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -427,7 +431,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "100 * avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "100 * avg((DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -489,7 +493,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(DCGM_FI_DEV_POWER_USAGE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "sum((DCGM_FI_DEV_POWER_USAGE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_POWER_USAGE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -559,7 +563,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max(DCGM_FI_DEV_GPU_TEMP{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "max((DCGM_FI_DEV_GPU_TEMP{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_TEMP{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -621,7 +625,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum((DCGM_FI_DEV_FB_FREE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} + DCGM_FI_DEV_FB_USED{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} + DCGM_FI_DEV_FB_RESERVED{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}))",
+          "expr": "sum(((DCGM_FI_DEV_FB_FREE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_FB_FREE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")) + (DCGM_FI_DEV_FB_USED{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_FB_USED{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")) + (DCGM_FI_DEV_FB_RESERVED{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_FB_RESERVED{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\"))))",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -687,7 +691,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(increase(DCGM_EXP_XID_ERRORS_COUNT_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h])) or vector(0)",
+          "expr": "sum((increase(DCGM_EXP_XID_ERRORS_COUNT_total{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]) or label_replace(label_replace(increase(DCGM_EXP_XID_ERRORS_COUNT_total{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]), \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\"))) or vector(0)",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -717,7 +721,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu, modelName, DCGM_FI_DRIVER_VERSION) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "count by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu, modelName, DCGM_FI_DRIVER_VERSION) ((DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -729,7 +733,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "B",
           "legendFormat": "",
           "instant": true,
@@ -741,7 +745,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (100 * DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (100 * (DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "C",
           "legendFormat": "",
           "instant": true,
@@ -753,7 +757,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_GPU_TEMP{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_DEV_GPU_TEMP{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_TEMP{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "D",
           "legendFormat": "",
           "instant": true,
@@ -765,7 +769,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_POWER_USAGE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_DEV_POWER_USAGE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_POWER_USAGE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "E",
           "legendFormat": "",
           "instant": true,
@@ -777,7 +781,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_DEV_FB_FREE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} + DCGM_FI_DEV_FB_USED{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} + DCGM_FI_DEV_FB_RESERVED{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}))",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (((DCGM_FI_DEV_FB_FREE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_FB_FREE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")) + (DCGM_FI_DEV_FB_USED{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_FB_USED{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")) + (DCGM_FI_DEV_FB_RESERVED{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_FB_RESERVED{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\"))))",
           "refId": "F",
           "legendFormat": "",
           "instant": true,
@@ -789,7 +793,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (increase(DCGM_EXP_XID_ERRORS_COUNT_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]))",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((increase(DCGM_EXP_XID_ERRORS_COUNT_total{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]) or label_replace(label_replace(increase(DCGM_EXP_XID_ERRORS_COUNT_total{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]), \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\"))) and max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "G",
           "legendFormat": "",
           "instant": true,
@@ -1057,7 +1061,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
         }
@@ -1112,7 +1116,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (100 * DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (100 * (DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
         }
@@ -1167,7 +1171,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "100 * avg by (vcluster_platform_instance) (DCGM_FI_PROF_GR_ENGINE_ACTIVE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "100 * avg by (vcluster_platform_instance) ((DCGM_FI_PROF_GR_ENGINE_ACTIVE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_PROF_GR_ENGINE_ACTIVE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}} graphics engine"
         },
@@ -1176,7 +1180,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "100 * avg by (vcluster_platform_instance) (DCGM_FI_PROF_DRAM_ACTIVE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "100 * avg by (vcluster_platform_instance) ((DCGM_FI_PROF_DRAM_ACTIVE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_PROF_DRAM_ACTIVE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "B",
           "legendFormat": "{{vcluster_platform_instance}} memory interface"
         },
@@ -1185,7 +1189,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg by (vcluster_platform_instance) (DCGM_FI_DEV_MEM_COPY_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "avg by (vcluster_platform_instance) ((DCGM_FI_DEV_MEM_COPY_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_MEM_COPY_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "C",
           "legendFormat": "{{vcluster_platform_instance}} memory copy"
         }
@@ -1238,7 +1242,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_PROF_PCIE_RX_BYTES{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_PROF_PCIE_RX_BYTES{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_PROF_PCIE_RX_BYTES{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}} rx"
         },
@@ -1247,7 +1251,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "-1 * max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_PROF_PCIE_TX_BYTES{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "-1 * max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_PROF_PCIE_TX_BYTES{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_PROF_PCIE_TX_BYTES{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "B",
           "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}} tx"
         }
@@ -1313,7 +1317,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_POWER_USAGE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_DEV_POWER_USAGE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_POWER_USAGE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
         }
@@ -1366,7 +1370,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (DCGM_FI_DEV_GPU_TEMP{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((DCGM_FI_DEV_GPU_TEMP{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_TEMP{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
         }
@@ -1428,7 +1432,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count by (vcluster_platform_instance) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "count by (vcluster_platform_instance) ((DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}}",
           "instant": true,
@@ -1480,7 +1484,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg by (vcluster_platform_instance) (DCGM_FI_DEV_GPU_UTIL{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "avg by (vcluster_platform_instance) ((DCGM_FI_DEV_GPU_UTIL{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}}",
           "instant": true,
@@ -1532,7 +1536,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (vcluster_platform_instance) (DCGM_FI_DEV_POWER_USAGE{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"})",
+          "expr": "sum by (vcluster_platform_instance) ((DCGM_FI_DEV_POWER_USAGE{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"} or label_replace(label_replace(DCGM_FI_DEV_POWER_USAGE{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}, \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}}",
           "instant": true,
@@ -1601,7 +1605,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (increase(DCGM_EXP_XID_ERRORS_COUNT_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]))",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((increase(DCGM_EXP_XID_ERRORS_COUNT_total{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]) or label_replace(label_replace(increase(DCGM_EXP_XID_ERRORS_COUNT_total{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]), \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
         }
@@ -1654,7 +1658,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (increase(DCGM_FI_DEV_UNCORRECTABLE_REMAPPED_ROWS_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]))",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((increase(DCGM_FI_DEV_UNCORRECTABLE_REMAPPED_ROWS_total{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]) or label_replace(label_replace(increase(DCGM_FI_DEV_UNCORRECTABLE_REMAPPED_ROWS_total{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]), \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}} uncorrectable"
         },
@@ -1663,7 +1667,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (increase(DCGM_FI_DEV_CORRECTABLE_REMAPPED_ROWS_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]))",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((increase(DCGM_FI_DEV_CORRECTABLE_REMAPPED_ROWS_total{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]) or label_replace(label_replace(increase(DCGM_FI_DEV_CORRECTABLE_REMAPPED_ROWS_total{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]), \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "B",
           "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}} correctable"
         }
@@ -1716,7 +1720,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) (increase(DCGM_FI_DEV_PCIE_REPLAY_COUNTER_total{vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]))",
+          "expr": "max by (vcluster_platform_project, vcluster_platform_instance, Hostname, gpu) ((increase(DCGM_FI_DEV_PCIE_REPLAY_COUNTER_total{tenant_cluster=\"\",vcluster_platform_project=~\"$project\",vcluster_platform_instance=~\"$tenant\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]) or label_replace(label_replace(increase(DCGM_FI_DEV_PCIE_REPLAY_COUNTER_total{tenant_cluster=~\"$tenant\",tenant_project=~\"$project\",Hostname=~\"$node\",modelName=~\"$model\"}[1h]), \"vcluster_platform_instance\", \"$1\", \"tenant_cluster\", \"(.+)\"), \"vcluster_platform_project\", \"$1\", \"tenant_project\", \"(.+)\")))",
           "refId": "A",
           "legendFormat": "{{vcluster_platform_instance}} / {{Hostname}} / GPU {{gpu}}"
         }

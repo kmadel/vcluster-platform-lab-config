@@ -96,8 +96,10 @@ spec:
             connector: demo-lab
         # Shared platform pieces the parent provides once for every cluster on it.
         # Operand pods synced from a cluster's GPU Operator ask for runtimeClassName
-        # nvidia, and RuntimeClasses are not synced down from those clusters. The
-        # "nvidia" handler is the one nvml-mock's cloud-init adds to containerd.
+        # nvidia, and RuntimeClasses are not synced down from those clusters, so the
+        # API server here would reject the pods without this one. The "nvidia"
+        # handler is the runtime nvml-mock's node agent (installed by each cluster's
+        # Stack) adds to containerd; with real GPUs, the GPU Operator's toolkit does.
         experimental:
           deploy:
             vcluster:
