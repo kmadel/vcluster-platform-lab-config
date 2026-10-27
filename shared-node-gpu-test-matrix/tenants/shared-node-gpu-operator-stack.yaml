@@ -49,6 +49,10 @@ spec:
           # kvm-gb300-1gpu-tenant sets workload.example.com/pool as a property.
           gpuNodePool: gpu-compute
           driverVersion: '{{ .Values.driverVersion }}'
+          # Busy enough to look like real use on the dashboards: averages about
+          # 75%, and tensor activity follows at about 37%.
+          gpuUtilMin: '65'
+          gpuUtilMax: '85'
     - name: gpu-operator
       dependsOn:
         - nvml-mock

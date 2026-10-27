@@ -56,6 +56,15 @@ spec:
       description: Driver version nvidia-smi and NVML report, such as 580.82.07 (chart 0.6.0+; on 0.5.x it only reaches the node agent). Leave empty for the profile's own version.
       type: string
       defaultValue: ''
+    - variable: gpuUtilMin
+      label: Simulated GPU Utilization Minimum (%)
+      description: Each sample is random between the minimum and maximum. Tensor activity follows at half of it (fixed in nvml-mock).
+      type: number
+      defaultValue: '15'
+    - variable: gpuUtilMax
+      label: Simulated GPU Utilization Maximum (%)
+      type: number
+      defaultValue: '75'
   template:
     spec:
       # Not "default": the NRI plugin skips pods in the release's own namespace, and
@@ -88,8 +97,8 @@ spec:
                 enabled: true
                 utilization:
                   pattern: steady
-                  gpu_min: 15
-                  gpu_max: 75
+                  gpu_min: {{ .Values.gpuUtilMin | default "15" }}
+                  gpu_max: {{ .Values.gpuUtilMax | default "75" }}
                   memory_min: 10
                   memory_max: 60
             nodeSelector:
