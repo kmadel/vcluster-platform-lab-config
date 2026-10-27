@@ -83,7 +83,7 @@ spec:
                 - name: gpu
                   profile: '{{ if contains "--" .Values.loft.project }}gpu-compute-{{ index (splitList "--" .Values.loft.project) 0 }}{{ else }}gpu-compute{{ end }}'
                   # This lab has one GPU machine available for private nodes.
-                  quantity: 0
+                  quantity: 1
                   properties:
                     vcluster.com/os-image: ubuntu-noble-nvidia-gpu
                   nodeTypeSelector:
