@@ -22,9 +22,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: vcluster-platform
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    # automated:
+    #   prune: true
+    #   selfHeal: true
     # The clusters (wave 2) can't be admitted until elastic-cp-parent is connected
     # as a control plane cluster, which is a one-time CLI step on a fresh build.
     retry:
