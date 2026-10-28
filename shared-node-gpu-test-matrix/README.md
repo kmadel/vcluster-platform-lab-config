@@ -43,7 +43,10 @@ never changes when a cluster is added:
    `gpu-baseline` syncs only nodes with its own tenant label, the node shows up in
    `gpu-baseline` and in no other shared-node cluster.
 5. When `gpu-baseline` sleeps or is deleted, its node empties and is consolidated
-   after 2 minutes. The VM goes back to the GB300 tray.
+   after 2 minutes. The VM goes back to the GB300 tray. Scaling a workload down
+   inside `gpu-baseline` releases an extra node only through the
+   `tenant-node-reaper` CronJob, not through Karpenter; see
+   [Scaling in](#scaling-in).
 
 Two keys, two jobs: `demo.vcluster.com/tenant` is the per-cluster **label**, and
 `demo.vcluster.com/tenant-pool=true:NoSchedule` is the pool's **taint**, the same
@@ -216,8 +219,102 @@ name, `gpuOperatorVersion`, and `driverVersion`. Nothing on the parent changes.
   meter needs usage snapshots, which need the Platform database, which needs an
   offline license key. The clusters' `nvidia.com/gpu` is the live number.
 
+## Scaling in
+
+A cluster can scale out: give `gpu-baseline` a workload that needs more GPUs than
+its nodes have, and its pending pod gets it another GPU VM, labeled for
+`gpu-baseline`, within a few minutes. Scaling that workload back down does **not**
+make Karpenter release the extra node; the `tenant-node-reaper` CronJob below
+does.
+
+Karpenter, running in `elastic-cp-parent`, consolidates a `WhenEmpty` node only
+when nothing but DaemonSet pods is left on it, and it recognizes a DaemonSet pod
+only by an owner reference with `apiVersion: apps/v1` and `kind: DaemonSet`
+(`IsReschedulable` in Karpenter's `pkg/utils/pod/scheduling.go`). The DaemonSet
+pods from `gpu-baseline` (nvml-mock, the GPU Operator's operands) run in
+`elastic-cp-parent` as copies that vCluster owns by `Service/gpu-baseline`, because
+the DaemonSets themselves exist only in `gpu-baseline`. So after a scale-down,
+Karpenter sees the extra node still running ordinary pods and leaves it.
+`WhenEmptyOrUnderutilized` doesn't help either: the copies are pinned to their
+node by name, so Karpenter can't move them.
+
+What releases a node:
+
+- **Sleep or delete the cluster.** All of its pods go away, DaemonSet copies
+  included, and its nodes are consolidated after 2 minutes. This is the scale-in
+  to use in a demo. Sleep scales Deployments to zero and gives each DaemonSet a
+  `nodeSelector` that no node matches, so their pods are removed too. The
+  `shared-node-gpu-tenant` template puts every cluster to sleep at midnight
+  (`sleep.auto.schedule: "0 0 * * *"`), so extra GPU nodes are released every
+  night without anyone doing it. A cluster wakes on its next access. Midnight is
+  in the timezone from the `demo.vcluster.com/sleep-timezone` annotation on
+  `elastic-cp-parent`'s Cluster resource (`../clusters/elastic-cp-parent.yaml`),
+  or UTC without it.
+- **The `tenant-node-reaper` CronJob does it in about 4 minutes.**
+  `elastic-cp-parent` runs it every minute (defined with the RuntimeClass in
+  `parent/elastic-cp-parent.yaml`). For each tenant node it checks whether every
+  running pod came from a DaemonSet: the parent's own DaemonSet pods are owned by a
+  DaemonSet, and vCluster marks synced copies of a cluster's DaemonSet pods with
+  `vcluster.loft.sh/owner-set-kind: DaemonSet`. A node that is idle on two runs
+  at least 2 minutes apart is deleted.
+
+  A new node also starts out with only DaemonSet pods, before the pod that asked
+  for it schedules, so the job keeps a node that:
+  - Karpenter hasn't initialized yet, or initialized less than 2 minutes ago.
+    Initialized means the node's extended resources (its GPU) are registered,
+    which is when a waiting GPU pod can bind.
+  - A Pending pod is waiting for, by the node's tenant label.
+
+  Measured on `gpu-candidate`: after scaling `gpu-demo` from 2 to 1, its extra node
+  was gone 4.4 minutes later (75 seconds of that was the pod terminating). Scaling
+  back to 2, the new node was kept throughout its 4-minute start-up until the
+  replica was running on it.
+
+  Deleting the Node object is enough. Karpenter's `karpenter.sh/termination`
+  finalizer drains it, deletes its NodeClaim, and the VM goes back to the tray,
+  in about a minute. The job needs only plain RBAC in `elastic-cp-parent` (list
+  pods and nodes, read Karpenter NodeClaims, patch and delete nodes), no Platform
+  credential. A node with
+  the `karpenter.sh/do-not-disrupt: "true"` annotation is skipped.
+
+  To check a node by hand, or release it right away:
+
+  ```bash
+  # In elastic-cp-parent: pods on the node that did not come from a DaemonSet.
+  kubectl get pods -A --field-selector spec.nodeName=<node> -o json | jq -r '
+    .items[] | select((.metadata.annotations["vcluster.loft.sh/owner-set-kind"] // "") != "DaemonSet")
+    | select([.metadata.ownerReferences[]? | select(.kind == "DaemonSet")] | length == 0)
+    | "\(.metadata.namespace)/\(.metadata.name)"'
+  # Nothing printed: release it.
+  kubectl delete node <node>
+  ```
+
+Alternatives that don't work here:
+
+- **`syncSettings.setOwner: false`** only removes the `Service` owner reference,
+  which leaves the copies with no owner at all.
+- **A pod patch that adds a `DaemonSet` owner reference** needs the UID of a real
+  DaemonSet in the cluster's host namespace. The API server assigns UIDs, so it
+  can't be set in advance, and the garbage collector strips an owner reference
+  whose UID doesn't match while another owner is valid.
+- **An autoscaler inside the shared-node cluster**, which sees the real
+  DaemonSet owners, needs a provider that can create nodes for the parent. The
+  Auto Nodes Karpenter provider is built into Private Nodes and has no
+  standalone form. With EKS and AWS Karpenter that's possible in principle, but
+  the guidance from a customer case was not to run an autoscaler inside a
+  vCluster, and to run such DaemonSets on the host instead. That doesn't fit
+  here, where each cluster owns its GPU Operator and nvml-mock.
+
+The same root cause hits host-level Karpenter on EKS with DaemonSets inside a
+vCluster, so it's worth raising with the Auto Nodes team: vCluster already marks
+the copies with `vcluster.loft.sh/owner-set-kind: DaemonSet`, which Karpenter
+could honor.
+
 ## Limits
 
+- **Scaling a workload down releases its node only after about 4 minutes,**
+  through `tenant-node-reaper`, not through Karpenter. See
+  [Scaling in](#scaling-in).
 - **Simulated GPUs.** The driver version per cluster is what nvml-mock reports,
   not an installed driver.
 - **`driverVersion` needs nvml-mock 0.6.0 or later.** In chart 0.5.0 and 0.5.1 it

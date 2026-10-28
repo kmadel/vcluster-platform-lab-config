@@ -1,0 +1,17 @@
+# Metadata-only server-side-apply overlay for elastic-cp-parent, the Private Nodes
+# cluster from shared-node-gpu-test-matrix/ that is also connected as a control plane
+# cluster (`vcluster platform add cluster`, which created this object). Platform owns
+# spec, connection state, finalizers, and status; Git owns only the parameters the
+# tenant cluster templates read.
+#
+# Kept here, not in shared-node-gpu-test-matrix/: that Application prunes, and pruning
+# this object would disconnect the parent. fleet-clusters does not prune.
+apiVersion: management.loft.sh/v1
+kind: Cluster
+metadata:
+  name: elastic-cp-parent
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # IANA timezone for scheduled sleep of the tenant clusters whose control planes
+    # run here (templates read it as .Values.loft.clusterAnnotations).
+    demo.vcluster.com/sleep-timezone: America/New_York

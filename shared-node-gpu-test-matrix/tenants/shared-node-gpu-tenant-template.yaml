@@ -79,6 +79,17 @@ spec:
                 nvmlMockVersion: 0.5.0
                 argoProject: default
               prunePolicy: Prune
+        # Nightly cleanup of extra GPU nodes. Scaling a workload down doesn't release
+        # a node (the parent's Karpenter counts this cluster's DaemonSet copies as
+        # ordinary pods; see the README), but sleep scales Deployments to zero and
+        # gives DaemonSets a nodeSelector nothing matches, so every node empties and
+        # is consolidated. The cluster wakes on its next access. The timezone comes
+        # from the control plane cluster's demo.vcluster.com/sleep-timezone
+        # annotation (clusters/*.yaml), falling back to UTC.
+        sleep:
+          auto:
+            schedule: "0 0 * * *"
+            timezone: '{{ index .Values.loft.clusterAnnotations "demo.vcluster.com/sleep-timezone" | default "UTC" }}'
         sync:
           fromHost:
             nodes:

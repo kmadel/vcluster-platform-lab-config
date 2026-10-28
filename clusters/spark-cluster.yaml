@@ -4,6 +4,9 @@ metadata:
   name: spark-cluster
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # IANA timezone for scheduled sleep of the tenant clusters whose control planes
+    # run here (templates read it as .Values.loft.clusterAnnotations).
+    demo.vcluster.com/sleep-timezone: America/New_York
     # Envoy Gateway supports the HTTPRoute request-mirror filter but doesn't
     # advertise HTTPRouteRequestMirror in GatewayClass status. Without this,
     # sleep mode can't count HTTPRoute traffic as activity and tenant clusters

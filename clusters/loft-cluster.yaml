@@ -14,6 +14,9 @@ metadata:
   annotations:
     sleepmode.loft.sh/request-mirror-controller-allowlist: "gateway.envoyproxy.io/gatewayclass-controller"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # IANA timezone for scheduled sleep of the tenant clusters whose control planes
+    # run here (templates read it as .Values.loft.clusterAnnotations).
+    demo.vcluster.com/sleep-timezone: America/New_York
     fleet.lab.kurtmadel.com/metallb-pool: "192.168.50.0/24"
     fleet.lab.kurtmadel.com/gateway-lb-ip: "192.168.50.10"
     fleet.lab.kurtmadel.com/base-domain: "lab.kurtmadel.com"

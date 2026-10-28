@@ -109,3 +109,157 @@ spec:
                 metadata:
                   name: nvidia
                 handler: nvidia
+                # tenant-node-reaper: releases a tenant node a few minutes after only DaemonSet pods are
+                # left on it. Karpenter can't, because a cluster's DaemonSet pods run here
+                # as copies vCluster owns by the cluster's Service, so to Karpenter the node
+                # never looks empty (see the README's "Scaling in"). Deleting the Node
+                # object is enough: Karpenter's termination finalizer drains it and deletes
+                # its NodeClaim, and the VM goes back to the tray.
+                ---
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: tenant-node-reaper
+                ---
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: tenant-node-reaper
+                  namespace: tenant-node-reaper
+                ---
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRole
+                metadata:
+                  name: tenant-node-reaper
+                rules:
+                  - apiGroups: [""]
+                    resources: ["nodes"]
+                    verbs: ["get", "list", "patch", "delete"]
+                  - apiGroups: [""]
+                    resources: ["pods"]
+                    verbs: ["list"]
+                  # Read-only: the parent's API server refuses writes to karpenter.sh.
+                  - apiGroups: ["karpenter.sh"]
+                    resources: ["nodeclaims"]
+                    verbs: ["get", "list"]
+                ---
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRoleBinding
+                metadata:
+                  name: tenant-node-reaper
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: ClusterRole
+                  name: tenant-node-reaper
+                subjects:
+                  - kind: ServiceAccount
+                    name: tenant-node-reaper
+                    namespace: tenant-node-reaper
+                ---
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: tenant-node-reaper
+                  namespace: tenant-node-reaper
+                data:
+                  reap.sh: |
+                    #!/bin/bash
+                    # Deletes a tenant node once it only runs DaemonSet pods: this cluster's own
+                    # (owned by a DaemonSet) and synced copies of a tenant cluster's, which
+                    # vCluster marks with vcluster.loft.sh/owner-set-kind: DaemonSet.
+                    #
+                    # A new node also starts out with only DaemonSet pods, before the pod that asked
+                    # for it schedules. Three guards keep it:
+                    #   1. Karpenter hasn't initialized it yet. Initialized means its extended
+                    #      resources (the GPU) are registered, which is when a waiting GPU pod can
+                    #      bind; INIT_GRACE_SECONDS more covers the bind itself.
+                    #   2. A Pending pod in this cluster asks for the node's tenant label.
+                    #   3. It must be idle on two runs at least IDLE_SECONDS apart, which also rides
+                    #      out a rolling restart.
+                    set -euo pipefail
+                    IDLE_SECONDS="${IDLE_SECONDS:-120}"
+                    INIT_GRACE_SECONDS="${INIT_GRACE_SECONDS:-120}"
+                    MARK=demo.vcluster.com/idle-since
+                    now=$(date +%s)
+
+                    # Node name -> when Karpenter initialized it (epoch seconds).
+                    initialized=$(kubectl get nodeclaims.karpenter.sh -o json | jq -c '
+                      [.items[] | select(.status.nodeName != null)
+                       | {(.status.nodeName): ([.status.conditions[]? | select(.type == "Initialized" and .status == "True")
+                                                | .lastTransitionTime | fromdateiso8601][0] // 0)}] | add // {}')
+                    # Tenant values that Pending pods are waiting for.
+                    waiting=$(kubectl get pods -A --field-selector status.phase=Pending -o json | jq -c '
+                      [.items[] | .spec.nodeSelector["demo.vcluster.com/tenant"] // empty] | unique')
+
+                    kubectl get nodes -l demo.vcluster.com/tenant -o json |
+                      jq -r '.items[] | select(.metadata.deletionTimestamp == null)
+                        | select((.metadata.annotations["karpenter.sh/do-not-disrupt"] // "") != "true")
+                        | "\(.metadata.name) \(.metadata.labels["demo.vcluster.com/tenant"]) \(.metadata.annotations["'"$MARK"'"] // "")"' |
+                    while read -r node tenant since; do
+                      init=$(jq -r --arg n "$node" '.[$n] // 0' <<<"$initialized")
+                      if [ "$init" = "0" ] || [ $(( now - init )) -lt "$INIT_GRACE_SECONDS" ]; then
+                        [ -n "$since" ] && kubectl annotate node "$node" "$MARK-" >/dev/null
+                        echo "$node: new (not initialized, or initialized under ${INIT_GRACE_SECONDS}s ago), keeping"
+                        continue
+                      fi
+                      if jq -e --arg t "$tenant" 'index($t) != null' <<<"$waiting" >/dev/null; then
+                        [ -n "$since" ] && kubectl annotate node "$node" "$MARK-" >/dev/null
+                        echo "$node: pods are pending for $tenant, keeping"
+                        continue
+                      fi
+                      busy=$(kubectl get pods -A --field-selector "spec.nodeName=$node" -o json | jq '
+                        [.items[] | select(.status.phase != "Succeeded" and .status.phase != "Failed")
+                         | select((.metadata.annotations["vcluster.loft.sh/owner-set-kind"] // "") != "DaemonSet")
+                         | select([.metadata.ownerReferences[]? | select(.kind == "DaemonSet" or .kind == "Node")] | length == 0)
+                        ] | length')
+                      if [ "$busy" != "0" ]; then
+                        [ -n "$since" ] && kubectl annotate node "$node" "$MARK-" >/dev/null
+                        echo "$node: $busy workload pods, keeping"
+                      elif [ -z "$since" ]; then
+                        kubectl annotate node "$node" "$MARK=$now" >/dev/null
+                        echo "$node: only DaemonSet pods, marked idle"
+                      elif [ $(( now - since )) -ge "$IDLE_SECONDS" ]; then
+                        echo "$node: idle for $(( now - since ))s, deleting"
+                        kubectl delete node "$node" --wait=false
+                      else
+                        echo "$node: idle for $(( now - since ))s, waiting"
+                      fi
+                    done
+                ---
+                apiVersion: batch/v1
+                kind: CronJob
+                metadata:
+                  name: tenant-node-reaper
+                  namespace: tenant-node-reaper
+                spec:
+                  schedule: "* * * * *"
+                  concurrencyPolicy: Forbid
+                  successfulJobsHistoryLimit: 2
+                  failedJobsHistoryLimit: 3
+                  jobTemplate:
+                    spec:
+                      backoffLimit: 0
+                      template:
+                        spec:
+                          serviceAccountName: tenant-node-reaper
+                          restartPolicy: Never
+                          containers:
+                            - name: reap
+                              image: alpine/k8s:1.34.1
+                              command: ["bash", "/scripts/reap.sh"]
+                              env:
+                                - name: IDLE_SECONDS
+                                  value: "120"
+                                - name: INIT_GRACE_SECONDS
+                                  value: "120"
+                              resources:
+                                requests:
+                                  cpu: 10m
+                                  memory: 32Mi
+                              volumeMounts:
+                                - name: scripts
+                                  mountPath: /scripts
+                          volumes:
+                            - name: scripts
+                              configMap:
+                                name: tenant-node-reaper
