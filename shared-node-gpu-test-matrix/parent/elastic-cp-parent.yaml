@@ -109,6 +109,66 @@ spec:
                 metadata:
                   name: nvidia
                 handler: nvidia
+                # tenant-pool-isolation: the tenant pool's taint keeps out pods without a tenant
+                # selector, but any pod can tolerate it, by key or with a wildcard. This keeps a
+                # synced pod that gets past the taint on its own cluster's nodes: its
+                # demo.vcluster.com/tenant selector must equal <project>-<name> from its host
+                # namespace (p-<project>-v-<name>). Fails closed for any other namespace naming.
+                ---
+                apiVersion: admissionregistration.k8s.io/v1
+                kind: ValidatingAdmissionPolicy
+                metadata:
+                  name: tenant-pool-isolation
+                spec:
+                  failurePolicy: Fail
+                  matchConstraints:
+                    resourceRules:
+                      - apiGroups: [""]
+                        apiVersions: ["v1"]
+                        operations: ["CREATE"]
+                        resources: ["pods"]
+                  matchConditions:
+                    # Only pods synced from a shared-node cluster. The parent's own pods (flannel,
+                    # kube-proxy, collectors) also tolerate everything and belong on tenant nodes.
+                    - name: synced-from-a-cluster
+                      expression: >-
+                        has(object.metadata.labels) &&
+                        'vcluster.loft.sh/managed-by' in object.metadata.labels
+                    # ...that can get past the tenant pool's taint, by its key or with a wildcard.
+                    - name: tolerates-tenant-pool
+                      expression: >-
+                        has(object.spec.tolerations) && object.spec.tolerations.exists(t,
+                          (has(t.key) && t.key == 'demo.vcluster.com/tenant-pool') ||
+                          ((!has(t.key) || t.key == '') && has(t.operator) && t.operator == 'Exists'))
+                  variables:
+                    - name: cluster
+                      expression: "object.metadata.labels['vcluster.loft.sh/managed-by']"
+                    # Host namespaces follow p-<project>-v-<name>; the tenant value is <project>-<name>.
+                    # Anything else yields '' and is denied.
+                    - name: expected
+                      expression: >-
+                        request.namespace.startsWith('p-') && request.namespace.endsWith('-v-' + variables.cluster)
+                          ? request.namespace.substring(2, size(request.namespace) - size(variables.cluster) - 3) + '-' + variables.cluster
+                          : ''
+                  validations:
+                    - expression: >-
+                        variables.expected != '' &&
+                        has(object.spec.nodeSelector) &&
+                        'demo.vcluster.com/tenant' in object.spec.nodeSelector &&
+                        object.spec.nodeSelector['demo.vcluster.com/tenant'] == variables.expected
+                      messageExpression: >-
+                        'pod from cluster ' + variables.cluster + ' in ' + request.namespace +
+                        ' tolerates the tenant pool but does not select its own tenant nodes (demo.vcluster.com/tenant=' +
+                        (variables.expected == '' ? '<unknown: namespace is not p-<project>-v-<name>>' : variables.expected) + ')'
+                ---
+                apiVersion: admissionregistration.k8s.io/v1
+                kind: ValidatingAdmissionPolicyBinding
+                metadata:
+                  name: tenant-pool-isolation
+                spec:
+                  policyName: tenant-pool-isolation
+                  validationActions: ["Deny"]
+                ---
                 # tenant-node-reaper: releases a tenant node a few minutes after only DaemonSet pods are
                 # left on it. Karpenter can't, because a cluster's DaemonSet pods run here
                 # as copies vCluster owns by the cluster's Service, so to Karpenter the node

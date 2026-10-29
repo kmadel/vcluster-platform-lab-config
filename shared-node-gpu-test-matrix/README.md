@@ -1,11 +1,11 @@
-# Shared-node GPU test matrix
+# Shared Nodes GPU test matrix
 
-Shared-node clusters that each get their own GPU node, created on demand, and
+Tenant clusters on Shared Nodes that each get their own GPU node, created on demand, and
 run their own driver version and GPU Operator version on it. Use it to qualify
-a GPU stack upgrade next to the current version on identical hardware, without
+a GPU stack upgrade next to the current version on identical hardware or even to test GPU drivers, without
 building a physical cluster for each combination.
 
-The clusters keep what shared nodes are good at for trusted dev, CI, and test
+The clusters keep what Shared Nodes are good at for trusted dev, CI, and test
 teams: control planes as pods, sleep mode, and one platform stack. The GPU node
 under each one is dedicated to it and is reprovisioned clean when it's
 returned, so no driver or runtime state carries over to the next cluster.
@@ -16,7 +16,7 @@ This is a pattern built from today's pieces, not a product feature.
 
 ```text
 spark-cluster (control plane cluster)
-└─ elastic-cp-parent        Private Nodes + KubeVirt Auto Nodes (could be any node provider), project `platform` (private Platform project for Private Node tenant clusters also used as control plane clusters),
+└─ elastic-cp-parent        Private Nodes + KubeVirt Auto Nodes (could be any node provider), project `platform` (private Platform project for tenant clusters on Private Nodes also used as control plane clusters),
    │                        also connected to Platform as a control plane cluster
    ├─ system pool           kvm-medium VMs: parent system pods, cluster control planes
    └─ tenant pool           kvm-gb300-1gpu-tenant VMs, tainted, one per cluster
@@ -31,26 +31,38 @@ never changes when a cluster is added:
    `sync.fromHost.nodes.selector.labels: {demo.vcluster.com/tenant: <project>-<name>}`.
    vCluster adds that nodeSelector to every pod it syncs to the parent, and syncs
    only nodes with that label back into the cluster.
-2. The parent's `tenant` pool selects `demo.vcluster.com/tenant Exists`.
-3. The `kvm-gb300-1gpu-tenant` NodeType sets the property
+2. The parent's auto nodes dynamic `tenant` pool selects `demo.vcluster.com/tenant Exists`.
+3. The KubeVirt node provider `kvm-gb300-1gpu-tenant` NodeType sets the property
    `demo.vcluster.com/tenant: "*"`, which Platform turns into an `Exists`
    requirement, so the pool can use it for any cluster.
 4. Taking `gpu-baseline` as the example: the first pod it syncs to
    `elastic-cp-parent` waits there for a node. Karpenter, running in
    `elastic-cp-parent`, creates a NodeClaim that requires that one tenant value
    (`demo.vcluster.com/tenant In [gpu-test-matrix-gpu-baseline]`). When the VM
-   joins `elastic-cp-parent`, Karpenter copies the label to the new Node. Since
+   joins `elastic-cp-parent`, Karpenter copies that label to the new Node. Since
    `gpu-baseline` syncs only nodes with its own tenant label, the node shows up in
-   `gpu-baseline` and in no other shared-node cluster.
+   `gpu-baseline` and in no other Shared Nodes cluster.
 5. When `gpu-baseline` sleeps or is deleted, its node empties and is consolidated
    after 2 minutes. The VM goes back to the GB300 tray. Scaling a workload down
    inside `gpu-baseline` releases an extra node only through the
    `tenant-node-reaper` CronJob, not through Karpenter; see
    [Scaling in](#scaling-in).
 
-Two keys, two jobs: `demo.vcluster.com/tenant` is the per-cluster **label**, and
-`demo.vcluster.com/tenant-pool=true:NoSchedule` is the pool's **taint**, the same
-on every tenant node.
+Two keys, two jobs:
+
+- `demo.vcluster.com/tenant` is the per-cluster **label**. It keeps clusters off
+  each other's nodes: vCluster adds it as a `nodeSelector` to every pod it syncs,
+  so a `gpu-candidate` pod can only schedule on a node labeled for
+  `gpu-candidate`. Seeing a node isn't what stops it.
+- `demo.vcluster.com/tenant-pool=true:NoSchedule` is the pool's **taint**, the same
+  on every tenant node. It keeps off pods that have no tenant selector, such as the
+  clusters' control planes and the parent's own pods.
+
+The taint alone is a soft barrier: any pod can tolerate it, by key or with a
+wildcard (`operator: Exists`). A cluster on `elastic-cp-parent` created without
+the tenant selector could then put its pods on any cluster's GPU node. The
+`tenant-pool-isolation` admission policy closes that; see
+[Settings that matter](#settings-that-matter).
 
 To see the tenant value, look at the Karpenter `NodeClaims` inside the parent, not
 the Platform `NodeClaims` in `p-platform`. The Platform `NodeClaim` only asks the
@@ -75,13 +87,13 @@ The GPUs are simulated: the GB300 tray (`rack-a-u20-xlarge`) is carved into
 one-GPU-slot VMs, and nvml-mock makes each VM report one GB300. With real GPUs,
 the Stack would be the GPU Operator alone, installing the driver version the
 cluster asks for (`driver.enabled`, `driver.version`). That's safe because the
-node belongs to one shared-node tenant cluster and is reprovisioned when it's returned.
+node belongs to one tenant cluster on Shared Nodes and is reprovisioned when it's returned.
 
 ## Files
 
 | Path | What it is |
 |---|---|
-| `parent/elastic-cp-parent.yaml` | The parent cluster: `system` and `tenant` pools, embedded etcd, Argo CD integration, the `nvidia` RuntimeClass |
+| `parent/elastic-cp-parent.yaml` | The parent cluster: `system` and `tenant` pools, embedded etcd, Argo CD integration, and what it provides every cluster: the `nvidia` RuntimeClass, the `tenant-pool-isolation` admission policy, and the `tenant-node-reaper` CronJob |
 | `parent/parent-dcgm-collector-template.yaml` | Collector that scrapes every cluster's DCGM exporter on the parent |
 | `parent/parent-dcgm-collector.yaml` | Binds that collector to `elastic-cp-parent` |
 | `tenants/project.yaml` | Project `gpu-test-matrix`, allowed to use only `elastic-cp-parent` |
@@ -122,6 +134,18 @@ Defined outside this folder:
   checks those labels on the real node. Without sync-back, the operator can't put
   them there, so `kvm-gb300-1gpu-tenant` sets them as properties, which become
   node labels at boot.
+- **`tenant-pool-isolation` keeps every cluster on its own nodes.** A built-in
+  Kubernetes `ValidatingAdmissionPolicy` on `elastic-cp-parent`, no Kyverno needed.
+  It applies to pods synced from a cluster (they carry
+  `vcluster.loft.sh/managed-by`) that tolerate the tenant pool, by key or with a
+  wildcard. Such a pod must have a `demo.vcluster.com/tenant` selector equal to
+  `<project>-<name>`, computed from its host namespace (`p-<project>-v-<name>`).
+  Otherwise it's rejected, including any pod from a namespace that doesn't follow
+  that pattern. The parent's own pods (flannel, kube-proxy) also tolerate
+  everything and aren't affected. Without it, the separation depends on every
+  cluster on the parent being created from `shared-node-gpu-tenant`; the
+  `gpu-test-matrix` project enforces that for its own users, but admins of other
+  projects that can use the parent aren't held to it.
 - **The parent's `system` pool needs `demo.vcluster.com/tenant DoesNotExist`.**
   The Auto Nodes cloud provider registers every NodeType property key as a
   well-known label, and Karpenter lets a pool serve a pod that asks for a
@@ -133,7 +157,7 @@ Defined outside this folder:
   NodeType with an extended resource the claim doesn't request.
 - **Embedded CoreDNS** in each cluster, so no CoreDNS pod sits on (and holds) the
   GPU node.
-- **`elastic-cp-parent` has its own `nvidia` RuntimeClass.** A shared-node
+- **`elastic-cp-parent` has its own `nvidia` RuntimeClass.** A Shared Nodes
   cluster's pods run in `elastic-cp-parent`, so anything Kubernetes needs to
   start them has to exist there, not only in the cluster that created them:
   1. The GPU Operator's device plugin, GFD, DCGM exporter, and validator pods set
@@ -148,7 +172,7 @@ Defined outside this folder:
 
   `elastic-cp-parent`'s config creates the RuntimeClass inside itself with
   `experimental.deploy.vcluster.manifests`, so it's part of the parent's
-  definition in Git, and one copy serves every shared-node cluster on it. Its
+  definition in Git, and one copy serves every Shared Nodes cluster on it. Its
   `handler: nvidia` names the runtime that nvml-mock's node agent adds to
   containerd on each GPU node. With real GPUs, the GPU Operator's container
   toolkit adds it instead.
@@ -207,7 +231,7 @@ name, `gpuOperatorVersion`, and `driverVersion`. Nothing on the parent changes.
 ## Observability
 
 - **Parent:** fleet-bindings gives `elastic-cp-parent` the standard
-  `cluster-collector-with-embedded-etcd`, like every private-node cluster.
+  `cluster-collector-with-embedded-etcd`, like every Private Nodes cluster.
   `parent-dcgm-collector` adds the DCGM exporters of every cluster on it, with
   `tenant_cluster` and `tenant_project` labels, written with the parent's scope.
   In Grafana, use the `elastic-cp-parent` datasource, for example
@@ -297,7 +321,7 @@ Alternatives that don't work here:
   DaemonSet in the cluster's host namespace. The API server assigns UIDs, so it
   can't be set in advance, and the garbage collector strips an owner reference
   whose UID doesn't match while another owner is valid.
-- **An autoscaler inside the shared-node cluster**, which sees the real
+- **An autoscaler inside the Shared Nodes cluster**, which sees the real
   DaemonSet owners, needs a provider that can create nodes for the parent. The
   Auto Nodes Karpenter provider is built into Private Nodes and has no
   standalone form. With EKS and AWS Karpenter that's possible in principle, but
