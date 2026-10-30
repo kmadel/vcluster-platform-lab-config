@@ -1,0 +1,40 @@
+# Auto Nodes for Shared Nodes: the elastic parent (elastic-cp-parent) and every use
+# case built on it, such as the GPU test matrix. See shared-node-auto-nodes/README.md.
+#
+# The Application keeps its original name, shared-node-gpu-test-matrix, on purpose.
+# Argo CD tracks the objects it owns by Application name; renaming it would make
+# the old Application prune elastic-cp-parent and every cluster on it before the
+# new one recreated them. Only the path moved.
+#
+# Each use case's NodeType is defined with the other KubeVirt NodeTypes in
+# private-node-kubevirt-provider/kubevirt-provider.yaml (the GPU test matrix uses
+# kvm-gb300-1gpu-tenant, on the GB300 tray claimed by gpu-tray-host in
+# private-node-kubevirt-provider/private-node-provider-dynamic-template.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: shared-node-gpu-test-matrix
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://forgejo.apps.lab.kurtmadel.com/vcluster-demos/platform-config.git
+    targetRevision: main
+    path: shared-node-auto-nodes
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vcluster-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # The clusters (wave 2) can't be admitted until elastic-cp-parent is connected
+    # as a control plane cluster, which is a one-time CLI step on a fresh build.
+    retry:
+      limit: -1
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

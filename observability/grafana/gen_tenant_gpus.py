@@ -14,7 +14,7 @@ UUID on every node.
 
 Two kinds of series feed it. Most come from a collector inside the cluster that owns the GPU,
 scoped to that cluster (vcluster_platform_project/instance). A shared-node cluster's GPUs are
-collected on its elastic parent instead (shared-node-gpu-test-matrix/parent/
+collected on its elastic parent instead (shared-node-auto-nodes/use-cases/gpu-test-matrix/
 parent-dcgm-collector-template.yaml): those are written with the parent's scope and carry the
 owning cluster as tenant_project/tenant_cluster. m() relabels them so every panel and
 selector shows the owning cluster, never the parent.

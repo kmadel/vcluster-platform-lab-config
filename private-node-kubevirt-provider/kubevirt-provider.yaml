@@ -357,7 +357,7 @@ spec:
                           limits:
                             nvidia.com/gpu: "1"
             # One GB300 tray slot per cluster for the shared-node GPU test matrix
-            # (../shared-node-gpu-test-matrix). A plain VM: the cluster's own Stack
+            # (../shared-node-auto-nodes/use-cases/gpu-test-matrix). A plain VM: the cluster's own Stack
             # installs nvml-mock (with the driver version it asks for) and then the GPU
             # Operator, so nothing GPU-related comes from cloud-init. The tenant key with
             # "*" becomes an Exists requirement, so elastic-cp-parent's "tenant" pool can
