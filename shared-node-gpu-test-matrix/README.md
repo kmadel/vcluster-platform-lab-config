@@ -1,13 +1,13 @@
 # Shared Nodes GPU test matrix
 
-Tenant clusters on Shared Nodes that each get their own GPU node, created on demand, and
-run their own driver version and GPU Operator version on it. Use it to qualify
-a GPU stack upgrade next to the current version on identical hardware or even to test GPU drivers, without
+Tenant clusters on Shared Nodes that each get their own dedicated GPU node, created on demand, and
+run their own NVIDIA GPU driver version and NVIDIA GPU Operator version on it. Use it to qualify
+a GPU stack upgrade next to the current version on identical hardware or even to test different GPU drivers, without
 building a physical cluster for each combination.
 
-The clusters keep what Shared Nodes are good at for trusted dev, CI, and test
-teams: control planes as pods, sleep mode, and one platform stack. The GPU node
-under each one is dedicated to it and is reprovisioned clean when it's
+The tenant clusters keep what Shared Nodes are good at for trusted dev, CI, and test
+teams: control planes as pods, sleep mode, and one platform stack. The GPU node(s)
+under each one is dedicated to it via a node selector and is reprovisioned clean when it's
 returned, so no driver or runtime state carries over to the next cluster.
 
 This is a pattern built from today's pieces, not a product feature.
@@ -24,24 +24,24 @@ spark-cluster (control plane cluster)
       └─ gpu-candidate      project gpu-test-matrix: driver 580.82.07, GPU Operator v26.3.3
 ```
 
-Each cluster's identity reaches the parent on its pods, so the parent's config
-never changes when a cluster is added:
+Each tenant cluster's identity reaches the parent control plane cluster on its pods, so the parent's config
+never changes when a tenant cluster is added:
 
 1. The `shared-node-gpu-tenant` cluster template sets
    `sync.fromHost.nodes.selector.labels: {demo.vcluster.com/tenant: <project>-<name>}`.
    vCluster adds that nodeSelector to every pod it syncs to the parent, and syncs
-   only nodes with that label back into the cluster.
+   only nodes with that label back into the tenant cluster.
 2. The parent's auto nodes dynamic `tenant` pool selects `demo.vcluster.com/tenant Exists`.
-3. The KubeVirt node provider `kvm-gb300-1gpu-tenant` NodeType sets the property
+3. The KubeVirt node provider (could be any node provider) `kvm-gb300-1gpu-tenant` NodeType sets the property
    `demo.vcluster.com/tenant: "*"`, which Platform turns into an `Exists`
-   requirement, so the pool can use it for any cluster.
-4. Taking `gpu-baseline` as the example: the first pod it syncs to
-   `elastic-cp-parent` waits there for a node. Karpenter, running in
-   `elastic-cp-parent`, creates a NodeClaim that requires that one tenant value
+   requirement, so the pool can use it for any child Shared Node tenant cluster.
+4. Taking the tenant cluster `gpu-baseline` as the example: the first pod it syncs to
+   `elastic-cp-parent` waits there for a node. Karpenter, running in the 
+   `elastic-cp-parent` control plane cluster, creates a NodeClaim that requires that one tenant value
    (`demo.vcluster.com/tenant In [gpu-test-matrix-gpu-baseline]`). When the VM
-   joins `elastic-cp-parent`, Karpenter copies that label to the new Node. Since
+   joins `elastic-cp-parent` satisfying the original Karpent NodeClaim, Karpenter copies that label to the new Node. Since
    `gpu-baseline` syncs only nodes with its own tenant label, the node shows up in
-   `gpu-baseline` and in no other Shared Nodes cluster.
+   `gpu-baseline` and in no other child Shared Nodes tenant cluster.
 5. When `gpu-baseline` sleeps or is deleted, its node empties and is consolidated
    after 2 minutes. The VM goes back to the GB300 tray. Scaling a workload down
    inside `gpu-baseline` releases an extra node only through the
@@ -50,17 +50,17 @@ never changes when a cluster is added:
 
 Two keys, two jobs:
 
-- `demo.vcluster.com/tenant` is the per-cluster **label**. It keeps clusters off
+- `demo.vcluster.com/tenant` is the per-cluster **label**. It keeps tenant clusters off
   each other's nodes: vCluster adds it as a `nodeSelector` to every pod it syncs,
   so a `gpu-candidate` pod can only schedule on a node labeled for
   `gpu-candidate`. Seeing a node isn't what stops it.
 - `demo.vcluster.com/tenant-pool=true:NoSchedule` is the pool's **taint**, the same
-  on every tenant node. It keeps off pods that have no tenant selector, such as the
+  on every tenant node. It keeps off pods that have no tenant selector, such as the tenant
   clusters' control planes and the parent's own pods.
 
 The taint alone is a soft barrier: any pod can tolerate it, by key or with a
 wildcard (`operator: Exists`). A cluster on `elastic-cp-parent` created without
-the tenant selector could then put its pods on any cluster's GPU node. The
+the tenant selector could then put its pods on any tenant cluster's GPU node. The
 `tenant-pool-isolation` admission policy closes that; see
 [Settings that matter](#settings-that-matter).
 
@@ -73,9 +73,9 @@ vcluster platform connect vcluster elastic-cp-parent --project platform
 kubectl get nodeclaims.karpenter.sh -L demo.vcluster.com/tenant
 ```
 
-### The GPU stack
+### The GPU stack (specifically for mocked GPUs)
 
-Each cluster installs its own GPU stack with the `shared-node-gpu-operator`
+Each tenant cluster installs its own GPU stack with the `shared-node-gpu-operator`
 Stack, in order:
 
 1. **nvml-mock** (`demo-nvml-mock`), the simulated driver, reporting the driver
@@ -158,7 +158,7 @@ Defined outside this folder:
 - **Embedded CoreDNS** in each cluster, so no CoreDNS pod sits on (and holds) the
   GPU node.
 - **`elastic-cp-parent` has its own `nvidia` RuntimeClass.** A Shared Nodes
-  cluster's pods run in `elastic-cp-parent`, so anything Kubernetes needs to
+  tenant cluster's pods run in `elastic-cp-parent`, so anything Kubernetes needs to
   start them has to exist there, not only in the cluster that created them:
   1. The GPU Operator's device plugin, GFD, DCGM exporter, and validator pods set
      `runtimeClassName: nvidia`, which selects the containerd runtime that gives a
@@ -172,7 +172,7 @@ Defined outside this folder:
 
   `elastic-cp-parent`'s config creates the RuntimeClass inside itself with
   `experimental.deploy.vcluster.manifests`, so it's part of the parent's
-  definition in Git, and one copy serves every Shared Nodes cluster on it. Its
+  definition in Git, and one copy serves every Shared Nodes tenant cluster on it. Its
   `handler: nvidia` names the runtime that nvml-mock's node agent adds to
   containerd on each GPU node. With real GPUs, the GPU Operator's container
   toolkit adds it instead.
@@ -211,7 +211,7 @@ apply the update to each instance in the UI.
 ## Show it
 
 From the Platform UI: the Clusters list shows `1 GPU` for each cluster, and each
-cluster's Nodes view shows one node with its own name.
+tenant cluster's Nodes view shows one node with its own name.
 
 From a terminal:
 
@@ -236,7 +236,7 @@ name, `gpuOperatorVersion`, and `driverVersion`. Nothing on the parent changes.
   `tenant_cluster` and `tenant_project` labels, written with the parent's scope.
   In Grafana, use the `elastic-cp-parent` datasource, for example
   `DCGM_FI_DEV_GPU_UTIL{tenant_cluster="gpu-candidate"}`.
-- **Clusters:** the bundled `shared-node-tenant-collector` scrapes only each
+- **Tenant Clusters:** the bundled `shared-node-tenant-collector` scrapes only each
   cluster's API server and etcd, so the cluster-level Observability tab shows no
   GPU data. GPU metrics for these clusters live on the parent.
 - **License page:** on an online license, "Attached GPUs" stays at 0. The GPU
@@ -258,7 +258,7 @@ only by an owner reference with `apiVersion: apps/v1` and `kind: DaemonSet`
 pods from `gpu-baseline` (nvml-mock, the GPU Operator's operands) run in
 `elastic-cp-parent` as copies that vCluster owns by `Service/gpu-baseline`, because
 the DaemonSets themselves exist only in `gpu-baseline`. So after a scale-down,
-Karpenter sees the extra node still running ordinary pods and leaves it.
+Karpenter sees the extra node still running ordinary looking pods and leaves it.
 `WhenEmptyOrUnderutilized` doesn't help either: the copies are pinned to their
 node by name, so Karpenter can't move them.
 
@@ -268,7 +268,7 @@ What releases a node:
   included, and its nodes are consolidated after 2 minutes. This is the scale-in
   to use in a demo. Sleep scales Deployments to zero and gives each DaemonSet a
   `nodeSelector` that no node matches, so their pods are removed too. The
-  `shared-node-gpu-tenant` template puts every cluster to sleep at midnight
+  `shared-node-gpu-tenant` template puts every tenant cluster to sleep at midnight
   (`sleep.auto.schedule: "0 0 * * *"`), so extra GPU nodes are released every
   night without anyone doing it. A cluster wakes on its next access. Midnight is
   in the timezone from the `demo.vcluster.com/sleep-timezone` annotation on
@@ -346,7 +346,7 @@ could honor.
   `nvidia-smi`, GFD, and DCGM, still report the profile's `580.65.06`. The chart on
   `main` (0.6.0-dev) writes it into the profile's `system.driver_version`. Once
   0.6.0 is released, raise `nvmlMockVersion` in the cluster template.
-- **Control plane storage.** Each cluster's embedded etcd is a `local-path` volume
+- **Control plane storage.** Each tenant cluster's embedded etcd is a `local-path` volume
   on whichever `system` node it lands on. If that node is replaced, the cluster's
   state is lost (it is all re-created from Git, but the cluster restarts empty).
 - **GPU Operator v26.7.x and later don't run on nvml-mock.** The device plugin's
